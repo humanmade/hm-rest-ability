@@ -9,8 +9,8 @@ const { defineConfig, devices } = require( '@playwright/test' );
  */
 module.exports = defineConfig( {
 	testDir: './tests/e2e',
-	globalSetup: require.resolve( './global-setup' ),
-	globalTeardown: require.resolve( './global-teardown' ),
+	globalSetup: require.resolve( './tests/e2e/global-setup' ),
+	globalTeardown: require.resolve( './tests/e2e/global-teardown' ),
 	/* Playground boot is slow: 120s gives it headroom */
 	timeout: 120000,
 	/* Run tests in files in parallel */
