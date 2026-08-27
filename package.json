@@ -1,0 +1,16 @@
+{
+	"name": "hm-rest-ability",
+	"private": true,
+	"description": "OAuth2 discovery endpoints and a REST API ability for exposing WordPress to MCP clients via the MCP Adapter",
+	"scripts": {
+		"playground:start": "npx @wp-playground/cli server --blueprint=blueprint.json --auto-mount",
+		"test:e2e": "playwright test",
+		"test:e2e:debug": "playwright test --debug",
+		"test:e2e:watch": "playwright test --ui"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.49.0",
+		"@wp-playground/cli": "^1.0.0",
+		"@wordpress/e2e-test-utils-playwright": "^1.15.0"
+	}
+}

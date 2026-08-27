@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<ruleset name="HM REST Ability">
+	<description>PHP Coding Standards for HM REST Ability</description>
+
+	<!-- Set the PHP version for PHP_CodeSniffer / HM Linter. -->
+	<config name="php_version" value="70400"/>
+
+	<!-- Set a minimum PHP version for PHPCompatibility. -->
+	<config name="testVersion" value="7.4-"/>
+
+	<!-- Set a high memory limit. -->
+	<ini name="memory_limit" value="1024M"/>
+
+	<!-- Show sniff codes in all reports. -->
+	<arg value="ps"/>
+
+	<!-- Use colors in output. -->
+	<arg name="colors"/>
+
+	<!-- Check PHP files only. -->
+	<arg name="extensions" value="php"/>
+
+	<!-- Files to check. -->
+	<file>.</file>
+
+	<!-- Exclude dependencies and generated output. -->
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+
+	<!-- Test fixtures (incl. faked, unnamespaced WP core classes) aren't
+	     held to application code standards. -->
+	<exclude-pattern>*/tests/*</exclude-pattern>
+
+	<!-- Check for PHP cross-version compatibility. -->
+	<rule ref="PHPCompatibilityWP"/>
+
+	<!-- Use the Human Made coding standards. -->
+	<rule ref="HM">
+		<!-- Don't restrict namespaced functions to `namespace.php`. -->
+		<exclude name="HM.Files.FunctionFileName.WrongFile"/>
+		<!-- Don't force namespace Foo_Bar into directory foo_bar. -->
+		<exclude name="HM.Files.NamespaceDirectoryName"/>
+		<!-- Allow short `@var` notation. -->
+		<exclude name="Generic.Commenting.DocComment.MissingShort"/>
+		<!-- Faulty sniff still bundled in the HM standard. -->
+		<exclude name="PSR2R.Namespaces.UseInAlphabeticalOrder.Order"/>
+	</rule>
+
+	<!-- The main plugin file both declares symbols and calls require_once(). -->
+	<rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
+		<exclude-pattern>hm-rest-ability.php</exclude-pattern>
+	</rule>
+
+	<!-- inc/*.php files register hooks at the top level by design. -->
+	<rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
+		<exclude-pattern>inc/*.php</exclude-pattern>
+	</rule>
+
+	<!-- Text domain should be hm-rest-ability. -->
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="hm-rest-ability"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

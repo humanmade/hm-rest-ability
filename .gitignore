@@ -1,0 +1,10 @@
+/vendor/
+/node_modules/
+/composer.lock
+/.auth/
+/test-results/
+/playwright-report/
+/dist/
+.DS_Store
+*.log
+.phpunit.result.cache

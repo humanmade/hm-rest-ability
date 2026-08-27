@@ -1,0 +1,25 @@
+# Git attributes for release automation
+#
+# Anything marked `export-ignore` is stripped from `git archive` output,
+# which is how the distributable plugin ZIP is built in the release
+# workflow. This file is therefore the single source of truth for what
+# ships in a release.
+
+/.github export-ignore
+/tests export-ignore
+/node_modules export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/.editorconfig export-ignore
+/phpcs.xml.dist export-ignore
+/phpunit.xml.dist export-ignore
+/composer.json export-ignore
+/composer.lock export-ignore
+/package.json export-ignore
+/package-lock.json export-ignore
+/playwright.config.js export-ignore
+/global-setup.js export-ignore
+/global-teardown.js export-ignore
+/blueprint.json export-ignore
+/README.md export-ignore
+/CHANGELOG.md export-ignore
