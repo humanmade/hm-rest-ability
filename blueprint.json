@@ -17,10 +17,15 @@
 			"pluginData": {
 				"resource": "url",
 				"url": "https://github.com/WordPress/mcp-adapter/archive/refs/tags/v0.6.1.zip"
-			},
-			"options": {
-				"activate": true
 			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php rename( '/wordpress/wp-content/plugins/mcp-adapter-0.6.1', '/wordpress/wp-content/plugins/mcp-adapter' );"
+		},
+		{
+			"step": "activatePlugin",
+			"pluginPath": "mcp-adapter/mcp-adapter.php"
 		},
 		{
 			"step": "defineWpConfigConsts",
@@ -29,6 +34,11 @@
 				"WP_DEBUG_LOG": true,
 				"SCRIPT_DEBUG": true
 			}
+		},
+		{
+			"step": "activatePlugin",
+			"pluginPath": "hm-rest-ability/hm-rest-ability.php",
+			"pluginName": "HM REST Ability"
 		}
 	]
 }

@@ -2,6 +2,7 @@
 /node_modules/
 /composer.lock
 /.auth/
+/artifacts/
 /test-results/
 /playwright-report/
 /dist/

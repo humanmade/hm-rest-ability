@@ -53,6 +53,9 @@ module.exports = async () => {
 		blueprint,
 	} );
 
-	process.env.WP_BASE_URL = cli.serverUrl;
+	// runCLI()'s resolved return type (RunCLIServer) only exposes
+	// `{ playground, server }` — no server-URL property — so the URL is
+	// derived from the port we explicitly requested above instead.
+	process.env.WP_BASE_URL = `http://127.0.0.1:${ port }`;
 	globalThis.__wpPlayground = cli;
 };

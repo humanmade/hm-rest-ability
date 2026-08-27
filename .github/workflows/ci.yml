@@ -17,7 +17,7 @@ jobs:
             - name: Set up PHP
               uses: shivammathur/setup-php@v2
               with:
-                  php-version: '8.1'
+                  php-version: '8.2'
                   tools: composer:v2
                   coverage: none
 
@@ -33,7 +33,12 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                php: ['7.4', '8.0', '8.1', '8.2', '8.3']
+                # humanmade/coding-standards (a require-dev tool, not a
+                # runtime dependency) needs PHP >=8.2, which is why this
+                # matrix doesn't reach down to the plugin's own "Requires
+                # PHP: 7.4". PHP 7.4 compatibility is checked statically
+                # instead, via the PHPCompatibilityWP sniff in `composer lint`.
+                php: ['8.2', '8.3', '8.4']
         steps:
             - name: Checkout
               uses: actions/checkout@v4

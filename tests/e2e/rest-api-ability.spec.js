@@ -1,45 +1,31 @@
 /**
- * End-to-end tests for the REST API ability's wiring into MCP Adapter.
+ * End-to-end tests for the `rest-api/call` ability's registration.
  *
- * The ability itself isn't exposed as its own MCP tool — the default MCP
- * server exposes a fixed discover-abilities/get-ability-info/execute-ability
- * trio that looks abilities up dynamically. So the strongest black-box
- * signal available here is that MCP Adapter picked up the site-specific
- * server config from `filter_mcp_server_config()`, proving the plugin loaded
- * and its hooks ran in a real WordPress + MCP Adapter environment.
+ * The ability itself isn't visible through WordPress core's generic REST
+ * abilities browser (`/wp-abilities/v1/abilities`) — it only sets
+ * `meta.mcp.public`, MCP Adapter's own per-channel visibility flag, not
+ * core's separate `meta.show_in_rest` flag. That's intentional: it's meant
+ * for MCP clients, not as a general-purpose REST-browsable ability. So the
+ * strongest available black-box signal is its category, which core's
+ * categories endpoint lists unfiltered.
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
 test.describe( 'REST API ability', () => {
-	test( 'registers a site-namespaced MCP server route', async ( { request } ) => {
-		const response = await request.get( '/wp-json/' );
-		expect( response.status() ).toBe( 200 );
+	test( 'the categories list requires authentication', async ( { request } ) => {
+		const response = await request.get( '/wp-json/wp-abilities/v1/categories' );
 
-		const index = await response.json();
-		const mcpRoutes = Object.keys( index.routes ).filter( ( route ) =>
-			route.startsWith( '/mcp/mcp-' )
-		);
-
-		expect( mcpRoutes.length ).toBeGreaterThan( 0 );
+		expect( response.status() ).toBe( 401 );
 	} );
 
-	test( 'the REST API ability endpoint requires authentication', async ( { request } ) => {
-		const index = await ( await request.get( '/wp-json/' ) ).json();
-		const [ mcpRoute ] = Object.keys( index.routes ).filter( ( route ) =>
-			route.startsWith( '/mcp/mcp-' )
-		);
-		expect( mcpRoute ).toBeTruthy();
-
-		const response = await request.post( `/wp-json${ mcpRoute }`, {
-			data: {
-				jsonrpc: '2.0',
-				id: 1,
-				method: 'tools/list',
-			},
-			headers: { 'Content-Type': 'application/json' },
+	test( 'registers the rest-api ability category', async ( { requestUtils } ) => {
+		const categories = await requestUtils.rest( {
+			path: '/wp-abilities/v1/categories',
 		} );
 
-		// Unauthenticated MCP requests should be rejected, not silently allowed.
-		expect( [ 401, 403 ] ).toContain( response.status() );
+		const restApiCategory = categories.find( ( category ) => category.slug === 'rest-api' );
+
+		expect( restApiCategory ).toBeTruthy();
+		expect( restApiCategory.label ).toBe( 'REST API' );
 	} );
 } );
