@@ -10,7 +10,7 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.49.0",
-		"@wp-playground/cli": "^1.0.0",
+		"@wp-playground/cli": "^3.1.51",
 		"@wordpress/e2e-test-utils-playwright": "^1.15.0"
 	}
 }
