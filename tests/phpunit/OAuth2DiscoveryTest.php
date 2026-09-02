@@ -12,6 +12,7 @@ use WP_REST_Response;
 use WP_REST_Server;
 
 use function HM\OAuth2Discovery\add_www_authenticate_header;
+use function HM\OAuth2Discovery\match_well_known_path;
 use function HM\OAuth2Discovery\maybe_exempt_well_known_from_login_wall;
 use function HM\OAuth2Discovery\maybe_serve_well_known;
 
@@ -45,6 +46,25 @@ class OAuth2DiscoveryTest extends TestCase {
 		Actions\expectRemoved( 'init' )->never();
 
 		maybe_exempt_well_known_from_login_wall();
+	}
+
+	/**
+	 * @dataProvider well_known_path_provider
+	 */
+	public function test_well_known_paths_match_with_or_without_trailing_slash( string $request_uri, ?string $expected ): void {
+		$this->assertSame( $expected, match_well_known_path( $request_uri ) );
+	}
+
+	public function well_known_path_provider(): array {
+		return [
+			'authorization server'                  => [ '/.well-known/oauth-authorization-server', 'oauth-authorization-server' ],
+			'authorization server, trailing slash'  => [ '/.well-known/oauth-authorization-server/', 'oauth-authorization-server' ],
+			'protected resource'                    => [ '/.well-known/oauth-protected-resource', 'oauth-protected-resource' ],
+			'protected resource, trailing slash'    => [ '/.well-known/oauth-protected-resource/', 'oauth-protected-resource' ],
+			'protected resource with query string'  => [ '/.well-known/oauth-protected-resource/?x=1', 'oauth-protected-resource' ],
+			'unrelated well-known path'             => [ '/.well-known/something-else/', null ],
+			'site root'                             => [ '/', null ],
+		];
 	}
 
 	public function test_unmatched_well_known_path_is_ignored(): void {

@@ -62,15 +62,39 @@ function maybe_exempt_well_known_from_login_wall(): void {
  * post/page, and serves the matching discovery document.
  */
 function maybe_serve_well_known(): void {
-	$path = parse_url( $_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH );
+	$document = match_well_known_path( $_SERVER['REQUEST_URI'] ?? '' );
 
-	if ( $path === '/.well-known/oauth-authorization-server' ) {
+	if ( $document === 'oauth-authorization-server' ) {
 		serve_authorization_server_metadata();
 	}
 
-	if ( $path === '/.well-known/oauth-protected-resource' ) {
+	if ( $document === 'oauth-protected-resource' ) {
 		serve_protected_resource_metadata();
 	}
+}
+
+/**
+ * Works out which discovery document, if any, a request URI is asking for.
+ *
+ * Tolerates a trailing slash: some hosts redirect extensionless GET paths to
+ * their trailing-slash form before WordPress runs, and clients following that
+ * redirect must still get the document.
+ *
+ * @param string $request_uri Raw request URI, as in `$_SERVER['REQUEST_URI']`.
+ * @return string|null `oauth-authorization-server`, `oauth-protected-resource`, or null.
+ */
+function match_well_known_path( string $request_uri ): ?string {
+	$path = rtrim( (string) parse_url( $request_uri, PHP_URL_PATH ), '/' );
+
+	if ( $path === '/.well-known/oauth-authorization-server' ) {
+		return 'oauth-authorization-server';
+	}
+
+	if ( $path === '/.well-known/oauth-protected-resource' ) {
+		return 'oauth-protected-resource';
+	}
+
+	return null;
 }
 
 /**
