@@ -52,6 +52,8 @@ class OAuth2DiscoveryTest extends TestCase {
 	 * @dataProvider well_known_path_provider
 	 */
 	public function test_well_known_paths_match_with_or_without_trailing_slash( string $request_uri, ?string $expected ): void {
+		Functions\when( 'untrailingslashit' )->alias( fn ( $value ) => rtrim( $value, '/\\' ) );
+
 		$this->assertSame( $expected, match_well_known_path( $request_uri ) );
 	}
 

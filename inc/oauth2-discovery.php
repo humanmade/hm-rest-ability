@@ -84,7 +84,7 @@ function maybe_serve_well_known(): void {
  * @return string|null `oauth-authorization-server`, `oauth-protected-resource`, or null.
  */
 function match_well_known_path( string $request_uri ): ?string {
-	$path = rtrim( (string) parse_url( $request_uri, PHP_URL_PATH ), '/' );
+	$path = untrailingslashit( (string) parse_url( $request_uri, PHP_URL_PATH ) );
 
 	if ( $path === '/.well-known/oauth-authorization-server' ) {
 		return 'oauth-authorization-server';
