@@ -3,7 +3,7 @@
  * Plugin Name:       HM REST Ability
  * Plugin URI:        https://github.com/humanmade/hm-rest-ability
  * Description:       OAuth2 discovery endpoints and a REST API ability, for exposing WordPress to MCP clients via the MCP Adapter.
- * Version:           __VERSION__
+ * Version:           0.2.0
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Requires Plugins:  mcp-adapter
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'HM_REST_ABILITY_VERSION', '__VERSION__' );
+define( 'HM_REST_ABILITY_VERSION', '0.2.0' );
 define( 'HM_REST_ABILITY_PATH', plugin_dir_path( __FILE__ ) );
 define( 'HM_REST_ABILITY_URL', plugin_dir_url( __FILE__ ) );
 
