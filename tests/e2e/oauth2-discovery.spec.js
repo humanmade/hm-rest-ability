@@ -31,6 +31,15 @@ test.describe( 'OAuth2 discovery', () => {
 		expect( metadata.authorization_servers[ 0 ].startsWith( baseURL ) ).toBe( true );
 	} );
 
+	test( 'serves both documents at the trailing-slash URL', async ( { request } ) => {
+		for ( const path of [ '/.well-known/oauth-authorization-server/', '/.well-known/oauth-protected-resource/' ] ) {
+			const response = await request.get( path );
+
+			expect( response.status(), path ).toBe( 200 );
+			expect( response.headers()['content-type'], path ).toContain( 'application/json' );
+		}
+	} );
+
 	test( 'unrelated .well-known paths fall through to the normal 404', async ( { request } ) => {
 		const response = await request.get( '/.well-known/does-not-exist' );
 
