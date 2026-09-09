@@ -7,6 +7,10 @@ updates:
       open-pull-requests-limit: 10
       labels:
           - dependencies
+      groups:
+          composer-dependencies:
+              patterns:
+                  - "*"
     - package-ecosystem: npm
       directory: "/"
       schedule:
@@ -14,9 +18,17 @@ updates:
       open-pull-requests-limit: 10
       labels:
           - dependencies
+      groups:
+          npm-dependencies:
+              patterns:
+                  - "*"
     - package-ecosystem: github-actions
       directory: "/"
       schedule:
           interval: weekly
       labels:
           - dependencies
+      groups:
+          github-actions:
+              patterns:
+                  - "*"

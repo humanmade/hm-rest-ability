@@ -44,6 +44,12 @@ module.exports = async () => {
 		port,
 		php: process.env.WP_PLAYGROUND_PHP || undefined,
 		wp: process.env.WP_PLAYGROUND_WP || undefined,
+		// @wp-playground/cli >=2 distributes blueprint steps across its
+		// worker-thread pool rather than broadcasting each one to every
+		// worker, so a later step (e.g. activating a plugin) can land on a
+		// worker that never saw an earlier one (e.g. the rename that put the
+		// plugin there). Pin to a single worker so setup stays consistent.
+		workers: 1,
 		mount: [
 			{
 				hostPath: process.cwd(),
