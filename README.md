@@ -93,6 +93,12 @@ npm install
 - `composer test` — PHPUnit unit tests (Brain Monkey, no WordPress load).
 - `npm run test:e2e` — Playwright end-to-end tests against WordPress
   Playground.
+- `npm run test:evals:scripted` — runs the eval harness with a fixed script
+  instead of a model. Free, deterministic, and proves the harness itself works.
+- `npm run test:evals` — runs the same scenarios with a small model, to check
+  the tools can be used from their descriptions alone. Needs
+  `ANTHROPIC_API_KEY`. Defaults to `claude-haiku-4-5`; override with
+  `EVAL_MODEL`. Add `--repeat=3` to average over several runs.
 
 ## Release process
 
