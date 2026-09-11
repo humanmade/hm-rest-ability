@@ -14,6 +14,7 @@ use WP_REST_Server;
 use function HM\MediaAbilities\check_permission;
 use function HM\MediaAbilities\decode_file;
 use function HM\MediaAbilities\execute;
+use function HM\MediaAbilities\filter_mcp_server_config;
 use function HM\MediaAbilities\max_upload_bytes;
 
 class MediaAbilitiesTest extends TestCase {
@@ -224,6 +225,15 @@ class MediaAbilitiesTest extends TestCase {
 		] );
 
 		$this->assertSame( 'hm_media_no_filename', $result['code'] );
+	}
+
+	public function test_filter_mcp_server_config_exposes_the_ability_as_a_tool(): void {
+		$config = filter_mcp_server_config( [ 'tools' => [ 'mcp-adapter/execute-ability' ] ] );
+
+		$this->assertSame(
+			[ 'mcp-adapter/execute-ability', 'media/upload' ],
+			$config['tools']
+		);
 	}
 
 	public function test_execute_reports_a_decode_failure(): void {

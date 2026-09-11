@@ -279,4 +279,25 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'My Site MCP Server', $config['server_name'] );
 		$this->assertSame( 'mcp-my-site', $config['server_route'] );
 	}
+
+	public function test_filter_mcp_server_config_exposes_the_ability_as_a_tool(): void {
+		Functions\when( 'get_bloginfo' )->justReturn( 'My Site' );
+		Functions\when( 'sanitize_title' )->justReturn( 'my-site' );
+
+		$config = filter_mcp_server_config( [ 'tools' => [ 'mcp-adapter/execute-ability' ] ] );
+
+		$this->assertSame(
+			[ 'mcp-adapter/execute-ability', 'rest-api/call' ],
+			$config['tools']
+		);
+	}
+
+	public function test_filter_mcp_server_config_does_not_duplicate_the_tool(): void {
+		Functions\when( 'get_bloginfo' )->justReturn( 'My Site' );
+		Functions\when( 'sanitize_title' )->justReturn( 'my-site' );
+
+		$config = filter_mcp_server_config( [ 'tools' => [ 'rest-api/call' ] ] );
+
+		$this->assertSame( [ 'rest-api/call' ], $config['tools'] );
+	}
 }
