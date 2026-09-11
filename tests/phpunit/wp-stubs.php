@@ -55,6 +55,8 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 		private array $query_params = [];
 		private array $body_params = [];
 		private array $url_params = [];
+		private array $headers = [];
+		private string $body = '';
 
 		public function __construct( string $method = 'GET', string $route = '' ) {
 			$this->method = $method;
@@ -92,6 +94,22 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 		public function get_url_params(): array {
 			return $this->url_params;
 		}
+
+		public function set_body( string $body ): void {
+			$this->body = $body;
+		}
+
+		public function get_body(): string {
+			return $this->body;
+		}
+
+		public function set_header( string $key, string $value ): void {
+			$this->headers[ strtolower( str_replace( '-', '_', $key ) ) ] = $value;
+		}
+
+		public function get_headers(): array {
+			return $this->headers;
+		}
 	}
 }
 
@@ -115,6 +133,10 @@ if ( ! class_exists( 'WP_REST_Response' ) ) {
 
 		public function get_headers(): array {
 			return $this->headers;
+		}
+
+		public function is_error(): bool {
+			return $this->status >= 400;
 		}
 	}
 }

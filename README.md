@@ -35,6 +35,15 @@ plugin and the WordPress Abilities API.
   Core only answers `OPTIONS` when serving a real HTTP request, so the ability
   builds the same description from the route table itself.
 
+**Media upload ability** (`inc/media-abilities.php`)
+
+- Registers a `media/upload` ability that takes a base64-encoded file and puts
+  it in the media library, returning the attachment ID and URL. The REST API
+  ability can't do this: it sends JSON params, and `POST /wp/v2/media` needs a
+  request body plus `Content-Type` and `Content-Disposition` headers.
+- Requires the `upload_files` capability, and `edit_post` when a parent post is
+  given. Uploads are capped at the site's own limit, `wp_max_upload_size()`.
+
 ## Requirements
 
 - WordPress 6.9+ (for the built-in [Abilities API](https://make.wordpress.org/core/))
@@ -65,6 +74,9 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_max_response_bytes` — filter the maximum size, in bytes, of
   the response data returned for one `rest-api/call`. Defaults to `50000`; set
   it to `0` or less to disable trimming.
+- `hm_rest_ability_max_upload_bytes` — filter the maximum size, in bytes, of a
+  decoded `media/upload` file. Defaults to `wp_max_upload_size()`, the site's
+  own limit; set it to `0` or less to remove the limit.
 - `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
   removed from `.well-known/` requests (defaults to Human Made's Require
   Login plugin; no-ops elsewhere).
