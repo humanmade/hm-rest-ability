@@ -153,6 +153,44 @@ npm install
 - `composer test` — PHPUnit unit tests (Brain Monkey, no WordPress load).
 - `npm run test:e2e` — Playwright end-to-end tests against WordPress
   Playground.
+- `npm run test:evals` — local only. Gives a real Claude Code agent a plain
+  English task and checks what it did to WordPress. See below.
+- `npm run test:evals:check` — checks the eval graders without calling a model.
+  Free and fast.
+
+## Evals
+
+The end-to-end tests prove the MCP server answers correctly. The evals ask a
+different question: can an agent work out how to use these tools from their
+descriptions and schemas alone? That is what regresses quietly when someone
+rewords a description or changes a schema.
+
+These run locally only, never in CI. A model is not deterministic, so a failure
+is a prompt to go and look, not a build break.
+
+```bash
+npm run test:evals                  # all scenarios
+npm run test:evals -- --only=create-post --repeat=3
+npm run test:evals -- --model=opus
+```
+
+The harness is your own `claude` CLI, billed to your Claude Code subscription,
+so no API key is involved. It boots Playground, points Claude Code at the MCP
+endpoint, and gives it the task. Two flags matter:
+
+- `--restricted` removes Bash and the other code-running tools, so the agent
+  cannot reach the REST API directly and pass without using MCP.
+- `--strict-mcp-config` ignores your own MCP servers, so a run only ever sees
+  the test site.
+
+Scenarios live in `tests/evals/scenarios/`. Each is a plain English task plus a
+grader that reads WordPress state over a separate REST connection — never the
+agent's own account of what it did, so claiming success without changing
+anything fails.
+
+`npm run test:evals:check` runs the setup and graders with no agent at all and
+asserts every scenario fails. A grader that passes when nothing happened is
+testing nothing, and this catches it for free.
 
 ## Release process
 
