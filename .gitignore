@@ -9,3 +9,5 @@
 .DS_Store
 *.log
 .phpunit.result.cache
+.playground-credentials.json
+.playground-debug.log

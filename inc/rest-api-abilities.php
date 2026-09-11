@@ -49,7 +49,7 @@ function register_ability(): void {
 		[
 			'label'               => 'Call REST API',
 			'description'         => sprintf(
-				'Execute any WordPress REST API endpoint internally. Use the index endpoint (GET /) to discover available routes and their supported methods and parameters. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
+				'Execute any WordPress REST API endpoint internally. To find out what is available, call GET / for a list of every route and the methods it accepts, then OPTIONS on one route for its parameters. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
 				max_response_bytes()
 			),
 			'category'            => 'rest-api',
@@ -144,9 +144,14 @@ function check_permission( array $input ): bool|WP_Error {
  * @return array
  */
 function execute( array $input ): array {
-	$method   = strtoupper( $input['method'] ?? 'GET' );
-	$route    = $input['route'] ?? '';
-	$params   = $input['params'] ?? [];
+	$method = strtoupper( $input['method'] ?? 'GET' );
+	$route  = $input['route'] ?? '';
+	$params = $input['params'] ?? [];
+
+	if ( 'OPTIONS' === $method ) {
+		return describe_route( $route );
+	}
+
 	$request  = build_request( $method, $route, $params );
 	$response = rest_do_request( $request );
 
@@ -160,7 +165,8 @@ function execute( array $input ): array {
 		$response = rest_filter_response_fields( $response, rest_get_server(), $request );
 	}
 
-	$capped = cap_response_data( rest_get_server()->response_to_data( $response, false ) );
+	$data   = rest_get_server()->response_to_data( $response, false );
+	$capped = cap_response_data( condense_routes( $data ) );
 
 	$result = [
 		'status'  => $response->get_status(),
@@ -173,6 +179,71 @@ function execute( array $input ): array {
 	}
 
 	return $result;
+}
+
+/**
+ * Returns one route's supported methods and parameters.
+ *
+ * Core answers OPTIONS in WP_REST_Server::serve_request(), which
+ * rest_do_request() never reaches, so this builds the same description from
+ * the route table directly.
+ *
+ * @param string $route REST route path.
+ * @return array
+ */
+function describe_route( string $route ): array {
+	$server = rest_get_server();
+
+	foreach ( $server->get_routes() as $pattern => $handlers ) {
+		if ( ! preg_match( '#^' . $pattern . '[/]*$#i', $route ) ) {
+			continue;
+		}
+
+		$capped = cap_response_data( $server->get_data_for_route( $pattern, $handlers, 'help' ) );
+		$result = [
+			'status' => 200,
+			'data'   => $capped['data'],
+		];
+
+		if ( isset( $capped['truncated'] ) ) {
+			$result['truncated'] = $capped['truncated'];
+		}
+
+		return $result;
+	}
+
+	return [
+		'status' => 404,
+		'error'  => sprintf( 'No route matches %s.', $route ),
+	];
+}
+
+/**
+ * Reduces an index response's routes to a path => methods map.
+ *
+ * The full index carries every parameter of every route, which is around a
+ * megabyte on a stock site. Trimming that by size drops the route list
+ * altogether, which is the one part a client actually needs. Keeping the paths
+ * and methods costs a few kilobytes, and OPTIONS fills in the detail for
+ * whichever route the client picks.
+ *
+ * @param mixed $data Response data.
+ * @return mixed
+ */
+function condense_routes( $data ) {
+	if ( ! is_array( $data ) || empty( $data['routes'] ) || ! is_array( $data['routes'] ) ) {
+		return $data;
+	}
+
+	$condensed = [];
+
+	foreach ( $data['routes'] as $path => $descriptor ) {
+		$condensed[ $path ] = $descriptor['methods'] ?? [];
+	}
+
+	$data['routes'] = $condensed;
+
+	return $data;
 }
 
 /**

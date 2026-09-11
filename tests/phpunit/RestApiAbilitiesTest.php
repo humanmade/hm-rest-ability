@@ -12,6 +12,7 @@ use WP_REST_Server;
 
 use function HM\RestApiAbilities\build_request;
 use function HM\RestApiAbilities\cap_response_data;
+use function HM\RestApiAbilities\condense_routes;
 use function HM\RestApiAbilities\check_permission;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\filter_mcp_server_config;
@@ -216,6 +217,56 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertArrayHasKey( 'truncated', $result );
 		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
 		$this->assertNotEmpty( $result['truncated']['hint'] );
+	}
+
+	public function test_condense_routes_keeps_paths_and_methods(): void {
+		$data = [
+			'name'   => 'Test site',
+			'routes' => [
+				'/wp/v2/posts' => [
+					'namespace' => 'wp/v2',
+					'methods'   => [ 'GET', 'POST' ],
+					'endpoints' => [ [ 'args' => [ 'per_page' => [ 'type' => 'integer' ] ] ] ],
+				],
+			],
+		];
+
+		$result = condense_routes( $data );
+
+		$this->assertSame( [ '/wp/v2/posts' => [ 'GET', 'POST' ] ], $result['routes'] );
+		$this->assertSame( 'Test site', $result['name'] );
+	}
+
+	public function test_condense_routes_leaves_other_responses_alone(): void {
+		$data = [ 'id' => 1, 'title' => 'Hello' ];
+
+		$this->assertSame( $data, condense_routes( $data ) );
+	}
+
+	public function test_execute_describes_a_route_for_options(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[ 'methods' => [ 'GET' => true, 'POST' => true ] ],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertSame( 200, $result['status'] );
+		$this->assertSame( [ 'GET', 'POST' ], $result['data']['methods'] );
+	}
+
+	public function test_execute_reports_an_unknown_route_for_options(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/nope' ] );
+
+		$this->assertSame( 404, $result['status'] );
+		$this->assertNotEmpty( $result['error'] );
 	}
 
 	public function test_filter_mcp_server_config_namespaces_by_site(): void {

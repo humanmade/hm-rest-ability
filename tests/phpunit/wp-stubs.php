@@ -141,5 +141,13 @@ if ( ! class_exists( 'WP_REST_Server' ) ) {
 		public function response_to_data( WP_REST_Response $response, bool $embed ): array {
 			return $this->response_data ?? [ 'status' => $response->get_status() ];
 		}
+
+		public function get_data_for_route( string $route, array $handlers, string $context = 'view' ): array {
+			return [
+				'namespace' => 'wp/v2',
+				'methods'   => array_keys( $handlers[0]['methods'] ?? [] ),
+				'endpoints' => [ [ 'methods' => array_keys( $handlers[0]['methods'] ?? [] ) ] ],
+			];
+		}
 	}
 }
