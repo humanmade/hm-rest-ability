@@ -13,6 +13,12 @@
 			"step": "login"
 		},
 		{
+			"step": "setSiteOptions",
+			"options": {
+				"blogname": "HM REST Ability"
+			}
+		},
+		{
 			"step": "installPlugin",
 			"pluginData": {
 				"resource": "url",
@@ -36,9 +42,18 @@
 			}
 		},
 		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/test-application-passwords.php",
+			"data": "<?php\n/**\n * Test-only: makes application passwords usable in Playground.\n *\n * WordPress only offers them over SSL or on localhost, and Playground serves\n * over http://127.0.0.1. The Authorization header is also re-populated,\n * because some PHP server setups drop it before WordPress sees it.\n */\n\nadd_filter( 'wp_is_application_passwords_available', '__return_true' );\n\nif ( empty( $_SERVER['HTTP_AUTHORIZATION'] ) && function_exists( 'getallheaders' ) ) {\n\tforeach ( getallheaders() as $name => $value ) {\n\t\tif ( strtolower( $name ) === 'authorization' ) {\n\t\t\t$_SERVER['HTTP_AUTHORIZATION'] = $value;\n\t\t\tbreak;\n\t\t}\n\t}\n}\n"
+		},
+		{
 			"step": "activatePlugin",
 			"pluginPath": "hm-rest-ability/hm-rest-ability.php",
 			"pluginName": "HM REST Ability"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n$user = get_user_by( 'login', 'admin' );\nlist( $password ) = WP_Application_Passwords::create_new_application_password( $user->ID, [ 'name' => 'e2e-tests' ] );\nfile_put_contents(\n\t'/wordpress/wp-content/plugins/hm-rest-ability/.playground-credentials.json',\n\tjson_encode( [ 'user' => $user->user_login, 'password' => $password ] )\n);"
 		}
 	]
 }
