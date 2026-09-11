@@ -17,11 +17,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Default maximum size, in bytes, of a decoded upload.
- */
-const MAX_UPLOAD_BYTES = 8388608;
-
 add_action( 'wp_abilities_api_categories_init', __NAMESPACE__ . '\\register_category' );
 add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\\register_ability' );
 
@@ -47,7 +42,7 @@ function register_ability(): void {
 		[
 			'label'               => 'Upload Media',
 			'description'         => sprintf(
-				'Upload a file to the WordPress media library and return its attachment ID and URL. Send the file contents as base64, up to %d bytes once decoded. To use the attachment, call the REST API ability afterwards, for example by setting featured_media on a post.',
+				'Upload a file to the WordPress media library and return its attachment ID and URL. Send the file contents as base64, up to %d bytes once decoded, which is this site\'s upload limit. To use the attachment, call the REST API ability afterwards, for example by setting featured_media on a post.',
 				max_upload_bytes()
 			),
 			'category'            => 'media',
@@ -199,16 +194,22 @@ function execute( array $input ): array {
 /**
  * Returns the maximum size, in bytes, of a decoded upload.
  *
+ * Defaults to the site's own upload limit, which is the smaller of PHP's
+ * upload_max_filesize and post_max_size. The second of those is the real
+ * ceiling here: the file arrives base64-encoded inside the JSON-RPC body,
+ * which costs about a third more than the file itself.
+ *
  * @return int
  */
 function max_upload_bytes(): int {
 	/**
 	 * Filters the maximum size, in bytes, of a file uploaded through the
-	 * `media/upload` ability. Zero or less removes the limit.
+	 * `media/upload` ability. Defaults to wp_max_upload_size(). Zero or less
+	 * removes the limit.
 	 *
 	 * @param int $max_bytes Maximum decoded file size in bytes.
 	 */
-	return (int) apply_filters( 'hm_rest_ability_max_upload_bytes', MAX_UPLOAD_BYTES );
+	return (int) apply_filters( 'hm_rest_ability_max_upload_bytes', wp_max_upload_size() );
 }
 
 /**
@@ -240,7 +241,7 @@ function decode_file( string $encoded ) {
 	if ( $max_bytes > 0 && strlen( $decoded ) > $max_bytes ) {
 		return new WP_Error(
 			'hm_media_too_large',
-			sprintf( 'The file is larger than the %d byte limit.', $max_bytes )
+			sprintf( 'The file is larger than this site\'s %d byte upload limit.', $max_bytes )
 		);
 	}
 

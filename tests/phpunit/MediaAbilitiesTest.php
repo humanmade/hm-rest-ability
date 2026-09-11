@@ -23,8 +23,14 @@ class MediaAbilitiesTest extends TestCase {
 	 */
 	private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
+	/**
+	 * Stands in for PHP's own upload limits, which aren't available here.
+	 */
+	private const SITE_UPLOAD_LIMIT = 2097152;
+
 	protected function set_up(): void {
 		parent::set_up();
+		Functions\when( 'wp_max_upload_size' )->justReturn( self::SITE_UPLOAD_LIMIT );
 		$this->load_plugin_file( 'inc/media-abilities.php' );
 	}
 
@@ -132,6 +138,10 @@ class MediaAbilitiesTest extends TestCase {
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'hm_media_too_large', $result->get_error_code() );
+	}
+
+	public function test_max_upload_bytes_defaults_to_the_site_limit(): void {
+		$this->assertSame( self::SITE_UPLOAD_LIMIT, max_upload_bytes() );
 	}
 
 	public function test_max_upload_bytes_is_filterable(): void {

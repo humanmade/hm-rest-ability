@@ -42,7 +42,7 @@ plugin and the WordPress Abilities API.
   ability can't do this: it sends JSON params, and `POST /wp/v2/media` needs a
   request body plus `Content-Type` and `Content-Disposition` headers.
 - Requires the `upload_files` capability, and `edit_post` when a parent post is
-  given. Uploads are capped at 8MB once decoded.
+  given. Uploads are capped at the site's own limit, `wp_max_upload_size()`.
 
 ## Requirements
 
@@ -75,8 +75,8 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
   the response data returned for one `rest-api/call`. Defaults to `50000`; set
   it to `0` or less to disable trimming.
 - `hm_rest_ability_max_upload_bytes` — filter the maximum size, in bytes, of a
-  decoded `media/upload` file. Defaults to `8388608`; set it to `0` or less to
-  remove the limit.
+  decoded `media/upload` file. Defaults to `wp_max_upload_size()`, the site's
+  own limit; set it to `0` or less to remove the limit.
 - `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
   removed from `.well-known/` requests (defaults to Human Made's Require
   Login plugin; no-ops elsewhere).
