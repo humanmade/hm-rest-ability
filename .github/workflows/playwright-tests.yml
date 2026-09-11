@@ -3,8 +3,9 @@ name: Playwright Tests
 on:
     push:
         branches: [main]
+    # No branch filter: a pull request stacked on another feature branch
+    # needs checks too, not just once it retargets main.
     pull_request:
-        branches: [main]
 
 jobs:
     test:
