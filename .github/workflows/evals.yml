@@ -1,0 +1,83 @@
+name: Evals
+
+# Runs the scenarios against a real model, which costs money. Kept off pull
+# requests on purpose: the scripted harness check in CI covers those for free.
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+        inputs:
+            model:
+                description: Model to run against
+                required: false
+                default: claude-haiku-4-5
+            repeat:
+                description: Runs per scenario
+                required: false
+                default: '3'
+
+concurrency:
+    group: evals-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    evals:
+        name: Model evals
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        # Forks cannot read secrets, so there is nothing to run there.
+        if: github.repository == 'humanmade/hm-rest-ability'
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Check for an API key
+              id: key
+              env:
+                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+              run: |
+                  if [ -n "$ANTHROPIC_API_KEY" ]; then
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                    echo "No ANTHROPIC_API_KEY secret is set, so the evals were skipped." >> "$GITHUB_STEP_SUMMARY"
+                  fi
+
+            - name: Run evals
+              id: evals
+              if: steps.key.outputs.present == 'true'
+              continue-on-error: true
+              env:
+                  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+                  EVAL_MODEL: ${{ inputs.model || 'claude-haiku-4-5' }}
+                  WP_PLAYGROUND_PORT: 9400
+              run: npm run test:evals -- --repeat=${{ inputs.repeat || 3 }}
+
+            - name: Summarise
+              if: steps.key.outputs.present == 'true' && hashFiles('test-results/evals.json') != ''
+              run: node .github/scripts/eval-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+            - name: Upload the report
+              if: always()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: evals
+                  path: test-results/evals.json
+                  retention-days: 30
+                  if-no-files-found: ignore
+
+            # A model is not deterministic, so only the scenarios tagged `core`
+            # fail the run, and only when most of their attempts failed.
+            - name: Fail on a core scenario regression
+              if: steps.evals.outcome == 'failure'
+              run: exit 1
