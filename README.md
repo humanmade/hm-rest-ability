@@ -24,6 +24,16 @@ plugin and the WordPress Abilities API.
   `DELETE`, `OPTIONS`), instead of needing a bespoke ability per endpoint.
   Permissions are enforced by running the matched route's own
   `permission_callback`.
+- Caps the response data at 50KB by default, so a large payload can't fill a
+  client's context window. Oversized lists keep their leading items, oversized
+  objects keep their smallest fields, and the result says what was left out.
+  `_fields` is passed through to the request, so clients can ask for less up
+  front.
+- Gives clients a two-step way to find routes. `GET /` returns every route
+  path and the methods it accepts, a few kilobytes instead of the ~1MB full
+  index. `OPTIONS /wp/v2/posts` then returns that one route's parameters.
+  Core only answers `OPTIONS` when serving a real HTTP request, so the ability
+  builds the same description from the route table itself.
 
 ## Requirements
 
@@ -52,6 +62,9 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
   metadata document.
 - `hm_oauth2_protected_resource_metadata` — filter the RFC 9728 protected
   resource metadata document.
+- `hm_rest_ability_max_response_bytes` — filter the maximum size, in bytes, of
+  the response data returned for one `rest-api/call`. Defaults to `50000`; set
+  it to `0` or less to disable trimming.
 - `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
   removed from `.well-known/` requests (defaults to Human Made's Require
   Login plugin; no-ops elsewhere).

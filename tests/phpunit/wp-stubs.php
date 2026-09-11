@@ -25,6 +25,22 @@ if ( ! class_exists( 'WP_Error' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	function wp_json_encode( $data, int $options = 0, int $depth = 512 ) {
+		return json_encode( $data, $options, $depth );
+	}
+}
+
+if ( ! function_exists( 'wp_is_numeric_array' ) ) {
+	function wp_is_numeric_array( $data ): bool {
+		if ( ! is_array( $data ) ) {
+			return false;
+		}
+
+		return count( array_filter( array_keys( $data ), 'is_string' ) ) === 0;
+	}
+}
+
 if ( ! function_exists( 'is_wp_error' ) ) {
 	function is_wp_error( $thing ): bool {
 		return $thing instanceof WP_Error;
@@ -116,8 +132,22 @@ if ( ! class_exists( 'WP_REST_Server' ) ) {
 			return $this->routes;
 		}
 
+		private ?array $response_data = null;
+
+		public function set_response_data( array $data ): void {
+			$this->response_data = $data;
+		}
+
 		public function response_to_data( WP_REST_Response $response, bool $embed ): array {
-			return [ 'status' => $response->get_status() ];
+			return $this->response_data ?? [ 'status' => $response->get_status() ];
+		}
+
+		public function get_data_for_route( string $route, array $handlers, string $context = 'view' ): array {
+			return [
+				'namespace' => 'wp/v2',
+				'methods'   => array_keys( $handlers[0]['methods'] ?? [] ),
+				'endpoints' => [ [ 'methods' => array_keys( $handlers[0]['methods'] ?? [] ) ] ],
+			];
 		}
 	}
 }

@@ -17,6 +17,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Default maximum size, in bytes, of the JSON-encoded response data returned
+ * for a single call.
+ */
+const MAX_RESPONSE_BYTES = 50000;
+
 add_action( 'wp_abilities_api_categories_init', __NAMESPACE__ . '\\register_category' );
 add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\\register_ability' );
 add_filter( 'mcp_adapter_default_server_config', __NAMESPACE__ . '\\filter_mcp_server_config' );
@@ -42,7 +48,10 @@ function register_ability(): void {
 		'rest-api/call',
 		[
 			'label'               => 'Call REST API',
-			'description'         => 'Execute any WordPress REST API endpoint internally. Use the index endpoint (GET /) to discover available routes and their supported methods and parameters.',
+			'description'         => sprintf(
+				'Execute any WordPress REST API endpoint internally. To find out what is available, call GET / for a list of every route and the methods it accepts, then OPTIONS on one route for its parameters. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
+				max_response_bytes()
+			),
 			'category'            => 'rest-api',
 			'input_schema'        => [
 				'type'       => 'object',
@@ -58,7 +67,7 @@ function register_ability(): void {
 					],
 					'params' => [
 						'type'                 => 'object',
-						'description'          => 'Query params (GET/DELETE) or body params (POST/PUT/PATCH)',
+						'description'          => 'Query params (GET/DELETE) or body params (POST/PUT/PATCH). Pass _fields to limit which fields come back.',
 						'additionalProperties' => true,
 					],
 				],
@@ -135,9 +144,14 @@ function check_permission( array $input ): bool|WP_Error {
  * @return array
  */
 function execute( array $input ): array {
-	$method   = strtoupper( $input['method'] ?? 'GET' );
-	$route    = $input['route'] ?? '';
-	$params   = $input['params'] ?? [];
+	$method = strtoupper( $input['method'] ?? 'GET' );
+	$route  = $input['route'] ?? '';
+	$params = $input['params'] ?? [];
+
+	if ( 'OPTIONS' === $method ) {
+		return describe_route( $route );
+	}
+
 	$request  = build_request( $method, $route, $params );
 	$response = rest_do_request( $request );
 
@@ -145,11 +159,202 @@ function execute( array $input ): array {
 		return [ 'error' => $response->get_error_message() ];
 	}
 
-	return [
+	// rest_do_request() dispatches without the `rest_post_dispatch` filter
+	// that normally applies `_fields`, so apply it here.
+	if ( isset( $params['_fields'] ) ) {
+		$response = rest_filter_response_fields( $response, rest_get_server(), $request );
+	}
+
+	$data   = rest_get_server()->response_to_data( $response, false );
+	$capped = cap_response_data( condense_routes( $data ) );
+
+	$result = [
 		'status'  => $response->get_status(),
 		'headers' => $response->get_headers(),
-		'data'    => rest_get_server()->response_to_data( $response, false ),
+		'data'    => $capped['data'],
 	];
+
+	if ( isset( $capped['truncated'] ) ) {
+		$result['truncated'] = $capped['truncated'];
+	}
+
+	return $result;
+}
+
+/**
+ * Returns one route's supported methods and parameters.
+ *
+ * Core answers OPTIONS in WP_REST_Server::serve_request(), which
+ * rest_do_request() never reaches, so this builds the same description from
+ * the route table directly.
+ *
+ * @param string $route REST route path.
+ * @return array
+ */
+function describe_route( string $route ): array {
+	$server = rest_get_server();
+
+	foreach ( $server->get_routes() as $pattern => $handlers ) {
+		if ( ! preg_match( '#^' . $pattern . '[/]*$#i', $route ) ) {
+			continue;
+		}
+
+		$capped = cap_response_data( $server->get_data_for_route( $pattern, $handlers, 'help' ) );
+		$result = [
+			'status' => 200,
+			'data'   => $capped['data'],
+		];
+
+		if ( isset( $capped['truncated'] ) ) {
+			$result['truncated'] = $capped['truncated'];
+		}
+
+		return $result;
+	}
+
+	return [
+		'status' => 404,
+		'error'  => sprintf( 'No route matches %s.', $route ),
+	];
+}
+
+/**
+ * Reduces an index response's routes to a path => methods map.
+ *
+ * The full index carries every parameter of every route, which is around a
+ * megabyte on a stock site. Trimming that by size drops the route list
+ * altogether, which is the one part a client actually needs. Keeping the paths
+ * and methods costs a few kilobytes, and OPTIONS fills in the detail for
+ * whichever route the client picks.
+ *
+ * @param mixed $data Response data.
+ * @return mixed
+ */
+function condense_routes( $data ) {
+	if ( ! is_array( $data ) || empty( $data['routes'] ) || ! is_array( $data['routes'] ) ) {
+		return $data;
+	}
+
+	$condensed = [];
+
+	foreach ( $data['routes'] as $path => $descriptor ) {
+		$condensed[ $path ] = $descriptor['methods'] ?? [];
+	}
+
+	$data['routes'] = $condensed;
+
+	return $data;
+}
+
+/**
+ * Returns the maximum size, in bytes, of the response data for one call.
+ *
+ * @return int
+ */
+function max_response_bytes(): int {
+	/**
+	 * Filters the maximum size, in bytes, of the response data returned for a
+	 * single `rest-api/call`. Zero or less disables trimming.
+	 *
+	 * @param int $max_bytes Maximum response size in bytes.
+	 */
+	return (int) apply_filters( 'hm_rest_ability_max_response_bytes', MAX_RESPONSE_BYTES );
+}
+
+/**
+ * Trims response data down to the maximum response size.
+ *
+ * Lists keep as many leading items as fit. Objects keep their smallest fields
+ * and name the ones left out. Strings are cut short. Anything within the limit
+ * is returned untouched.
+ *
+ * @param mixed $data Response data.
+ * @return array Keyed by `data`, plus `truncated` when something was removed.
+ */
+function cap_response_data( $data ): array {
+	$max_bytes = max_response_bytes();
+
+	if ( $max_bytes <= 0 || encoded_size( $data ) <= $max_bytes ) {
+		return [ 'data' => $data ];
+	}
+
+	$truncated = [
+		'reason'    => 'response_too_large',
+		'max_bytes' => $max_bytes,
+		'hint'      => 'Narrow the response with _fields, per_page, or a more specific route.',
+	];
+
+	if ( is_string( $data ) ) {
+		return [
+			'data'      => substr( $data, 0, $max_bytes ),
+			'truncated' => $truncated,
+		];
+	}
+
+	if ( ! is_array( $data ) ) {
+		return [ 'data' => $data ];
+	}
+
+	if ( wp_is_numeric_array( $data ) ) {
+		$kept = [];
+		$size = 2;
+
+		foreach ( $data as $item ) {
+			$item_size = encoded_size( $item ) + 1;
+			if ( $size + $item_size > $max_bytes ) {
+				break;
+			}
+			$kept[] = $item;
+			$size  += $item_size;
+		}
+
+		$truncated['returned'] = count( $kept );
+		$truncated['total']    = count( $data );
+
+		return [
+			'data'      => $kept,
+			'truncated' => $truncated,
+		];
+	}
+
+	$field_sizes = [];
+	foreach ( $data as $key => $value ) {
+		$field_sizes[ $key ] = encoded_size( $value ) + strlen( (string) $key ) + 4;
+	}
+	asort( $field_sizes );
+
+	$kept    = [];
+	$omitted = [];
+	$size    = 2;
+
+	foreach ( $field_sizes as $key => $field_size ) {
+		if ( $size + $field_size <= $max_bytes ) {
+			$kept[ $key ] = true;
+			$size        += $field_size;
+			continue;
+		}
+		$omitted[ $key ] = $field_size;
+	}
+
+	$truncated['omitted_fields'] = $omitted;
+
+	return [
+		// array_intersect_key() against the original keeps the field order.
+		'data'      => array_intersect_key( $data, $kept ),
+		'truncated' => $truncated,
+	];
+}
+
+/**
+ * Returns the size, in bytes, of a value once JSON-encoded.
+ *
+ * @param mixed $value Value to measure.
+ * @return int
+ */
+function encoded_size( $value ): int {
+	$encoded = wp_json_encode( $value );
+
+	return false === $encoded ? 0 : strlen( $encoded );
 }
 
 /**

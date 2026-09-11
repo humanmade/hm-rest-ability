@@ -11,9 +11,12 @@ use WP_REST_Response;
 use WP_REST_Server;
 
 use function HM\RestApiAbilities\build_request;
+use function HM\RestApiAbilities\cap_response_data;
+use function HM\RestApiAbilities\condense_routes;
 use function HM\RestApiAbilities\check_permission;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\filter_mcp_server_config;
+use function HM\RestApiAbilities\max_response_bytes;
 
 class RestApiAbilitiesTest extends TestCase {
 
@@ -117,6 +120,153 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 200, $result['status'] );
 		$this->assertSame( [ 'X-Test' => 'yes' ], $result['headers'] );
 		$this->assertSame( [ 'status' => 200 ], $result['data'] );
+	}
+
+	/**
+	 * Overrides the response size cap for one test, leaving every other
+	 * filtered value passing straight through.
+	 */
+	private function set_max_response_bytes( int $bytes ): void {
+		Functions\when( 'apply_filters' )->alias(
+			static function ( string $hook, $value ) use ( $bytes ) {
+				return 'hm_rest_ability_max_response_bytes' === $hook ? $bytes : $value;
+			}
+		);
+	}
+
+	public function test_max_response_bytes_is_filterable(): void {
+		$this->set_max_response_bytes( 123 );
+
+		$this->assertSame( 123, max_response_bytes() );
+	}
+
+	public function test_cap_response_data_leaves_small_payloads_alone(): void {
+		$data = [ 'id' => 1, 'title' => 'Hello' ];
+
+		$result = cap_response_data( $data );
+
+		$this->assertSame( $data, $result['data'] );
+		$this->assertArrayNotHasKey( 'truncated', $result );
+	}
+
+	public function test_cap_response_data_is_skipped_when_the_cap_is_zero(): void {
+		$this->set_max_response_bytes( 0 );
+		$data = [ str_repeat( 'a', 1000 ) ];
+
+		$result = cap_response_data( $data );
+
+		$this->assertSame( $data, $result['data'] );
+		$this->assertArrayNotHasKey( 'truncated', $result );
+	}
+
+	public function test_cap_response_data_truncates_lists(): void {
+		$this->set_max_response_bytes( 100 );
+		$data = array_fill( 0, 50, str_repeat( 'z', 20 ) );
+
+		$result = cap_response_data( $data );
+
+		$this->assertLessThan( 50, count( $result['data'] ) );
+		$this->assertNotEmpty( $result['data'] );
+		$this->assertSame( array_slice( $data, 0, count( $result['data'] ) ), $result['data'] );
+		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
+		$this->assertSame( count( $result['data'] ), $result['truncated']['returned'] );
+		$this->assertSame( 50, $result['truncated']['total'] );
+	}
+
+	public function test_cap_response_data_drops_the_largest_object_fields(): void {
+		$this->set_max_response_bytes( 100 );
+		$data = [
+			'name'   => 'Test site',
+			'routes' => array_fill( 0, 50, str_repeat( 'z', 20 ) ),
+		];
+
+		$result = cap_response_data( $data );
+
+		$this->assertSame( [ 'name' => 'Test site' ], $result['data'] );
+		$this->assertArrayHasKey( 'routes', $result['truncated']['omitted_fields'] );
+	}
+
+	public function test_execute_applies_fields_when_requested(): void {
+		$response = new WP_REST_Response( null, 200 );
+
+		Functions\when( 'rest_do_request' )->justReturn( $response );
+		Functions\when( 'rest_get_server' )->justReturn( new WP_REST_Server() );
+		Functions\expect( 'rest_filter_response_fields' )->once()->andReturn( $response );
+
+		$result = execute( [
+			'method' => 'GET',
+			'route'  => '/wp/v2/posts',
+			'params' => [ '_fields' => 'id,title' ],
+		] );
+
+		$this->assertSame( 200, $result['status'] );
+	}
+
+	public function test_execute_reports_truncation(): void {
+		$this->set_max_response_bytes( 20 );
+
+		$server = new WP_REST_Server();
+		$server->set_response_data( array_fill( 0, 50, 'padding' ) );
+
+		$response = new WP_REST_Response( null, 200 );
+		Functions\when( 'rest_do_request' )->justReturn( $response );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'GET', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertArrayHasKey( 'truncated', $result );
+		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
+		$this->assertNotEmpty( $result['truncated']['hint'] );
+	}
+
+	public function test_condense_routes_keeps_paths_and_methods(): void {
+		$data = [
+			'name'   => 'Test site',
+			'routes' => [
+				'/wp/v2/posts' => [
+					'namespace' => 'wp/v2',
+					'methods'   => [ 'GET', 'POST' ],
+					'endpoints' => [ [ 'args' => [ 'per_page' => [ 'type' => 'integer' ] ] ] ],
+				],
+			],
+		];
+
+		$result = condense_routes( $data );
+
+		$this->assertSame( [ '/wp/v2/posts' => [ 'GET', 'POST' ] ], $result['routes'] );
+		$this->assertSame( 'Test site', $result['name'] );
+	}
+
+	public function test_condense_routes_leaves_other_responses_alone(): void {
+		$data = [ 'id' => 1, 'title' => 'Hello' ];
+
+		$this->assertSame( $data, condense_routes( $data ) );
+	}
+
+	public function test_execute_describes_a_route_for_options(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[ 'methods' => [ 'GET' => true, 'POST' => true ] ],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertSame( 200, $result['status'] );
+		$this->assertSame( [ 'GET', 'POST' ], $result['data']['methods'] );
+	}
+
+	public function test_execute_reports_an_unknown_route_for_options(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/nope' ] );
+
+		$this->assertSame( 404, $result['status'] );
+		$this->assertNotEmpty( $result['error'] );
 	}
 
 	public function test_filter_mcp_server_config_namespaces_by_site(): void {
