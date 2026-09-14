@@ -19,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'wp_abilities_api_categories_init', __NAMESPACE__ . '\\register_category' );
 add_action( 'wp_abilities_api_init', __NAMESPACE__ . '\\register_ability' );
+add_filter( 'mcp_adapter_default_server_config', __NAMESPACE__ . '\\filter_mcp_server_config' );
 
 /**
  * Registers the "Media" ability category.
@@ -189,6 +190,21 @@ function execute( array $input ): array {
 		'mime_type'  => $data['mime_type'] ?? null,
 		'post'       => $data['post'] ?? null,
 	];
+}
+
+/**
+ * Exposes this ability as an MCP tool in its own right, rather than leaving it
+ * reachable only through the adapter's generic `execute-ability` tool.
+ *
+ * @param array $config Default server config.
+ * @return array
+ */
+function filter_mcp_server_config( array $config ): array {
+	$tools           = $config['tools'] ?? [];
+	$tools[]         = 'media/upload';
+	$config['tools'] = array_values( array_unique( $tools ) );
+
+	return $config;
 }
 
 /**

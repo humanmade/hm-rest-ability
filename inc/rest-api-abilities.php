@@ -358,7 +358,11 @@ function encoded_size( $value ): int {
 }
 
 /**
- * Filters the default MCP Adapter server config to namespace it by site.
+ * Filters the default MCP Adapter server config to namespace it by site, and
+ * to expose this ability as a tool in its own right.
+ *
+ * Without this the ability is only reachable through the adapter's generic
+ * `execute-ability` tool, which hides its input schema behind a generic one.
  *
  * @param array $config Default server config.
  * @return array
@@ -368,6 +372,11 @@ function filter_mcp_server_config( array $config ): array {
 	$config['server_id']    = 'mcp-' . $site_name;
 	$config['server_name']  = get_bloginfo( 'name' ) . ' MCP Server';
 	$config['server_route'] = 'mcp-' . $site_name;
+
+	$tools           = $config['tools'] ?? [];
+	$tools[]         = 'rest-api/call';
+	$config['tools'] = array_values( array_unique( $tools ) );
+
 	return $config;
 }
 
