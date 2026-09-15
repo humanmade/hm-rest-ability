@@ -45,11 +45,13 @@ test.describe( 'MCP protocol', () => {
 		expect( status ).toBe( 401 );
 	} );
 
-	test( 'lists both abilities as tools in their own right', async ( { request } ) => {
+	test( 'lists all four abilities as tools in their own right', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 		const names = ( await client.listTools() ).map( ( tool ) => tool.name );
 
-		expect( names ).toContain( 'rest-api-call' );
+		expect( names ).toContain( 'rest-api-read' );
+		expect( names ).toContain( 'rest-api-write' );
+		expect( names ).toContain( 'rest-api-delete' );
 		expect( names ).toContain( 'media-upload' );
 	} );
 
@@ -61,17 +63,51 @@ test.describe( 'MCP protocol', () => {
 		expect( names ).toContain( 'mcp-adapter-execute-ability' );
 	} );
 
-	test( 'advertises the REST API tool schema', async ( { request } ) => {
+	test( 'advertises each REST API tool schema, narrowed to its own methods', async ( { request } ) => {
 		const client = await McpClient.connect( request );
-		const tool = ( await client.listTools() ).find( ( t ) => t.name === 'rest-api-call' );
+		const tools = await client.listTools();
 
-		expect( Object.keys( tool.inputSchema.properties ) ).toEqual(
-			expect.arrayContaining( [ 'method', 'route', 'params' ] )
-		);
-		expect( tool.inputSchema.required ).toEqual(
-			expect.arrayContaining( [ 'method', 'route' ] )
-		);
-		expect( tool.inputSchema.properties.method.enum ).toContain( 'OPTIONS' );
+		const read = tools.find( ( t ) => t.name === 'rest-api-read' );
+		const write = tools.find( ( t ) => t.name === 'rest-api-write' );
+		const del = tools.find( ( t ) => t.name === 'rest-api-delete' );
+
+		for ( const tool of [ read, write, del ] ) {
+			expect( Object.keys( tool.inputSchema.properties ) ).toEqual(
+				expect.arrayContaining( [ 'method', 'route', 'params' ] )
+			);
+			expect( tool.inputSchema.required ).toEqual(
+				expect.arrayContaining( [ 'method', 'route' ] )
+			);
+		}
+
+		expect( read.inputSchema.properties.method.enum ).toEqual( [ 'GET', 'OPTIONS' ] );
+		expect( write.inputSchema.properties.method.enum ).toEqual( [ 'POST', 'PUT', 'PATCH' ] );
+		expect( del.inputSchema.properties.method.enum ).toEqual( [ 'DELETE' ] );
+	} );
+
+	test( 'advertises the REST API annotations honestly per tool', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+		const tools = await client.listTools();
+
+		const read = tools.find( ( t ) => t.name === 'rest-api-read' );
+		const write = tools.find( ( t ) => t.name === 'rest-api-write' );
+		const del = tools.find( ( t ) => t.name === 'rest-api-delete' );
+
+		expect( read.annotations.readOnlyHint ).toBe( true );
+		expect( read.annotations.destructiveHint ).toBe( false );
+		expect( read.annotations.idempotentHint ).toBe( true );
+
+		expect( write.annotations.readOnlyHint ).toBe( false );
+		expect( write.annotations.destructiveHint ).toBe( false );
+		expect( write.annotations.idempotentHint ).toBe( false );
+
+		expect( del.annotations.readOnlyHint ).toBe( false );
+		expect( del.annotations.destructiveHint ).toBe( true );
+		expect( del.annotations.idempotentHint ).toBe( false );
+
+		for ( const tool of [ read, write, del ] ) {
+			expect( tool.annotations.openWorldHint ).toBe( true );
+		}
 	} );
 
 	test( 'advertises the media upload tool schema', async ( { request } ) => {
@@ -87,7 +123,7 @@ test.describe( 'MCP protocol', () => {
 		const client = await McpClient.connect( request );
 
 		const result = await client.callTool( 'mcp-adapter-execute-ability', {
-			ability_name: 'rest-api/call',
+			ability_name: 'rest-api/read',
 			parameters: { method: 'GET', route: '/wp/v2/users/me', params: { _fields: 'slug' } },
 		} );
 

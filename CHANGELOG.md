@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** split the `rest-api/call` ability into `rest-api/read` (`GET`,
+  `OPTIONS`), `rest-api/write` (`POST`, `PUT`, `PATCH`), and `rest-api/delete`
+  (`DELETE`). `rest-api/call` no longer exists — there is no deprecated alias.
+  This lets an MCP client gate each kind of request separately, and gives each
+  tool an honest `readOnlyHint` / `destructiveHint` / `idempotentHint`, instead
+  of the previous single tool's static worst-case annotations.
+
 ### Fixed
 
 - Serve the `.well-known` discovery documents when the request path has a

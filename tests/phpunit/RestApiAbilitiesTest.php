@@ -17,12 +17,99 @@ use function HM\RestApiAbilities\check_permission;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\filter_mcp_server_config;
 use function HM\RestApiAbilities\max_response_bytes;
+use function HM\RestApiAbilities\register_ability;
 
 class RestApiAbilitiesTest extends TestCase {
 
 	protected function set_up(): void {
 		parent::set_up();
 		$this->load_plugin_file( 'inc/rest-api-abilities.php' );
+	}
+
+	/**
+	 * Calls register_ability() with wp_register_ability stubbed to capture
+	 * each ability's registration args, keyed by ability name.
+	 *
+	 * @return array<string, array>
+	 */
+	private function register_and_capture(): array {
+		$registered = [];
+		Functions\when( 'wp_register_ability' )->alias(
+			static function ( string $name, array $args ) use ( &$registered ) {
+				$registered[ $name ] = $args;
+			}
+		);
+
+		register_ability();
+
+		return $registered;
+	}
+
+	public function test_register_ability_registers_read_write_and_delete_tools(): void {
+		$registered = $this->register_and_capture();
+
+		$this->assertSame(
+			[ 'rest-api/read', 'rest-api/write', 'rest-api/delete' ],
+			array_keys( $registered )
+		);
+	}
+
+	public function test_register_ability_narrows_the_method_enum_per_tool(): void {
+		$registered = $this->register_and_capture();
+
+		$this->assertSame(
+			[ 'GET', 'OPTIONS' ],
+			$registered['rest-api/read']['input_schema']['properties']['method']['enum']
+		);
+		$this->assertSame(
+			[ 'POST', 'PUT', 'PATCH' ],
+			$registered['rest-api/write']['input_schema']['properties']['method']['enum']
+		);
+		$this->assertSame(
+			[ 'DELETE' ],
+			$registered['rest-api/delete']['input_schema']['properties']['method']['enum']
+		);
+	}
+
+	public function test_register_ability_sets_annotations_per_tool(): void {
+		$registered = $this->register_and_capture();
+
+		$this->assertSame(
+			[
+				'readonly'      => true,
+				'destructive'   => false,
+				'idempotent'    => true,
+				'openWorldHint' => true,
+			],
+			$registered['rest-api/read']['meta']['annotations']
+		);
+		$this->assertSame(
+			[
+				'readonly'      => false,
+				'destructive'   => false,
+				'idempotent'    => false,
+				'openWorldHint' => true,
+			],
+			$registered['rest-api/write']['meta']['annotations']
+		);
+		$this->assertSame(
+			[
+				'readonly'      => false,
+				'destructive'   => true,
+				'idempotent'    => false,
+				'openWorldHint' => true,
+			],
+			$registered['rest-api/delete']['meta']['annotations']
+		);
+	}
+
+	public function test_register_ability_shares_permission_and_execute_callbacks(): void {
+		$registered = $this->register_and_capture();
+
+		foreach ( $registered as $args ) {
+			$this->assertSame( 'HM\\RestApiAbilities\\check_permission', $args['permission_callback'] );
+			$this->assertSame( 'HM\\RestApiAbilities\\execute', $args['execute_callback'] );
+		}
 	}
 
 	public function test_check_permission_requires_login(): void {
@@ -388,24 +475,24 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'mcp-my-site', $config['server_route'] );
 	}
 
-	public function test_filter_mcp_server_config_exposes_the_ability_as_a_tool(): void {
+	public function test_filter_mcp_server_config_exposes_the_abilities_as_tools(): void {
 		Functions\when( 'get_bloginfo' )->justReturn( 'My Site' );
 		Functions\when( 'sanitize_title' )->justReturn( 'my-site' );
 
 		$config = filter_mcp_server_config( [ 'tools' => [ 'mcp-adapter/execute-ability' ] ] );
 
 		$this->assertSame(
-			[ 'mcp-adapter/execute-ability', 'rest-api/call' ],
+			[ 'mcp-adapter/execute-ability', 'rest-api/read', 'rest-api/write', 'rest-api/delete' ],
 			$config['tools']
 		);
 	}
 
-	public function test_filter_mcp_server_config_does_not_duplicate_the_tool(): void {
+	public function test_filter_mcp_server_config_does_not_duplicate_the_tools(): void {
 		Functions\when( 'get_bloginfo' )->justReturn( 'My Site' );
 		Functions\when( 'sanitize_title' )->justReturn( 'my-site' );
 
-		$config = filter_mcp_server_config( [ 'tools' => [ 'rest-api/call' ] ] );
+		$config = filter_mcp_server_config( [ 'tools' => [ 'rest-api/read', 'rest-api/write', 'rest-api/delete' ] ] );
 
-		$this->assertSame( [ 'rest-api/call' ], $config['tools'] );
+		$this->assertSame( [ 'rest-api/read', 'rest-api/write', 'rest-api/delete' ], $config['tools'] );
 	}
 }

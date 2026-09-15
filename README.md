@@ -17,23 +17,35 @@ plugin and the WordPress Abilities API.
 - Adds a `WWW-Authenticate` header to `401` responses on MCP REST routes,
   pointing clients at the protected resource metadata.
 
-**REST API ability** (`inc/rest-api-abilities.php`)
+**REST API abilities** (`inc/rest-api-abilities.php`)
 
-- Registers a single `rest-api/call` ability that lets an MCP client dispatch
-  any internal WordPress REST API request (`GET`, `POST`, `PUT`, `PATCH`,
-  `DELETE`, `OPTIONS`), instead of needing a bespoke ability per endpoint.
-  Permissions are enforced by running the matched route's own
-  `permission_callback`.
+- Registers three abilities that let an MCP client dispatch any internal
+  WordPress REST API request, instead of needing a bespoke ability per
+  endpoint. Permissions are enforced by running the matched route's own
+  `permission_callback`, so a user can only do through these abilities what
+  their WordPress capabilities already allow.
+
+  | Ability | Methods | `readOnlyHint` | `destructiveHint` | `idempotentHint` |
+  |---|---|---|---|---|
+  | `rest-api/read` | `GET`, `OPTIONS` | `true` | `false` | `true` |
+  | `rest-api/write` | `POST`, `PUT`, `PATCH` | `false` | `false` | `false` |
+  | `rest-api/delete` | `DELETE` | `false` | `true` | `false` |
+
+  Splitting by method means an MCP client can gate each kind of request
+  separately, for example auto-approving reads while asking for confirmation
+  before a write or a delete. All three carry `openWorldHint: true`, since a
+  route can be anything registered with WordPress, not a fixed set of
+  operations.
 - Caps the response data at 50KB by default, so a large payload can't fill a
   client's context window. Oversized lists keep their leading items, oversized
   objects keep their smallest fields, and the result says what was left out.
   `_fields` is passed through to the request, so clients can ask for less up
   front.
-- Gives clients a two-step way to find routes. `GET /` returns every route
-  path and the methods it accepts, a few kilobytes instead of the ~1MB full
-  index. `OPTIONS /wp/v2/posts` then returns that one route's parameters.
-  Core only answers `OPTIONS` when serving a real HTTP request, so the ability
-  builds the same description from the route table itself.
+- Gives clients a two-step way to find routes. `GET /` (via `rest-api/read`)
+  returns every route path and the methods it accepts, a few kilobytes instead
+  of the ~1MB full index. `OPTIONS /wp/v2/posts` then returns that one route's
+  parameters. Core only answers `OPTIONS` when serving a real HTTP request, so
+  the ability builds the same description from the route table itself.
 
 **Media upload ability** (`inc/media-abilities.php`)
 
@@ -72,8 +84,9 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_oauth2_protected_resource_metadata` — filter the RFC 9728 protected
   resource metadata document.
 - `hm_rest_ability_max_response_bytes` — filter the maximum size, in bytes, of
-  the response data returned for one `rest-api/call`. Defaults to `50000`; set
-  it to `0` or less to disable trimming.
+  the response data returned for one `rest-api/read`, `rest-api/write`, or
+  `rest-api/delete` call. Defaults to `50000`; set it to `0` or less to
+  disable trimming.
 - `hm_rest_ability_max_upload_bytes` — filter the maximum size, in bytes, of a
   decoded `media/upload` file. Defaults to `wp_max_upload_size()`, the site's
   own limit; set it to `0` or less to remove the limit.

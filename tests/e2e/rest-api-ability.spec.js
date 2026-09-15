@@ -1,13 +1,14 @@
 /**
- * End-to-end tests for the `rest-api/call` ability's registration.
+ * End-to-end tests for the `rest-api/read`, `rest-api/write`, and
+ * `rest-api/delete` abilities' registration.
  *
- * The ability itself isn't visible through WordPress core's generic REST
- * abilities browser (`/wp-abilities/v1/abilities`) — it only sets
+ * The abilities themselves aren't visible through WordPress core's generic
+ * REST abilities browser (`/wp-abilities/v1/abilities`) — they only set
  * `meta.mcp.public`, MCP Adapter's own per-channel visibility flag, not
- * core's separate `meta.show_in_rest` flag. That's intentional: it's meant
- * for MCP clients, not as a general-purpose REST-browsable ability. So the
- * strongest available black-box signal is its category, which core's
- * categories endpoint lists unfiltered.
+ * core's separate `meta.show_in_rest` flag. That's intentional: they're meant
+ * for MCP clients, not as general-purpose REST-browsable abilities. So the
+ * strongest available black-box signal is their shared category, which
+ * core's categories endpoint lists unfiltered.
  */
 const { test, expect } = require( '@wordpress/e2e-test-utils-playwright' );
 
