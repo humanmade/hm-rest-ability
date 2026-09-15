@@ -12,7 +12,20 @@ const { McpClient } = require( './support/mcp-client' );
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 /**
- * Calls the REST API tool and returns the ability's own result.
+ * Which of the three REST API tools handles each HTTP method.
+ */
+const TOOL_BY_METHOD = {
+	GET: 'rest-api-read',
+	OPTIONS: 'rest-api-read',
+	POST: 'rest-api-write',
+	PUT: 'rest-api-write',
+	PATCH: 'rest-api-write',
+	DELETE: 'rest-api-delete',
+};
+
+/**
+ * Calls the REST API tool matching the method and returns the ability's own
+ * result.
  *
  * @param {McpClient} client MCP client.
  * @param {string}    method HTTP method.
@@ -21,9 +34,10 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwA
  * @return {Promise<Object>} `{status, headers, data}` from the ability.
  */
 async function rest( client, method, route, params = {} ) {
-	const result = await client.callTool( 'rest-api-call', { method, route, params } );
+	const tool = TOOL_BY_METHOD[ method ];
+	const result = await client.callTool( tool, { method, route, params } );
 
-	expect( result.isError, `rest-api-call failed: ${ result.text }` ).toBe( false );
+	expect( result.isError, `${ tool } failed: ${ result.text }` ).toBe( false );
 
 	return result.data;
 }
@@ -67,7 +81,7 @@ test.describe( 'MCP content operations', () => {
 		// Core's permission callback for a single post rejects a missing ID
 		// before the request is dispatched, so this surfaces as a tool error
 		// rather than a 404 body.
-		const gone = await client.callTool( 'rest-api-call', {
+		const gone = await client.callTool( 'rest-api-read', {
 			method: 'GET',
 			route: `/wp/v2/posts/${ id }`,
 			params: {},
@@ -156,7 +170,7 @@ test.describe( 'MCP permissions', () => {
 	test( 'stops a subscriber creating a post', async ( { request } ) => {
 		const client = await McpClient.connect( request, 'subscriber' );
 
-		const result = await client.callTool( 'rest-api-call', {
+		const result = await client.callTool( 'rest-api-write', {
 			method: 'POST',
 			route: '/wp/v2/posts',
 			params: { title: 'Should not exist', status: 'publish' },
@@ -183,7 +197,7 @@ test.describe( 'MCP discovery', () => {
 	test( 'returns every route and its methods, within the cap', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 
-		const result = await client.callTool( 'rest-api-call', { method: 'GET', route: '/' } );
+		const result = await client.callTool( 'rest-api-read', { method: 'GET', route: '/' } );
 		const routes = result.data.data.routes;
 
 		expect( result.text.length ).toBeLessThan( 50000 );

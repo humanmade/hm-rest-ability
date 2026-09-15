@@ -1,8 +1,9 @@
 <?php
 /**
- * Exposes a single "call REST API" ability so MCP clients can dispatch any
- * internal WordPress REST API request without needing individual abilities
- * per endpoint.
+ * Exposes the WordPress REST API as three abilities — read, write, delete —
+ * so MCP clients can dispatch any internal REST API request without needing
+ * individual abilities per endpoint, while still being able to gate each kind
+ * of request separately.
  *
  * @package HM\RestAbility
  */
@@ -41,53 +42,106 @@ function register_category(): void {
 }
 
 /**
- * Registers the "call REST API" ability.
+ * Returns the definition of each REST API ability, keyed by ability name.
+ *
+ * One shared schema shape, permission callback, and execute callback serve
+ * all three abilities; only the allowed methods, description, and MCP
+ * annotations differ per tool.
+ *
+ * @return array<string, array{label: string, methods: string[], description: string, annotations: array}>
+ */
+function tool_definitions(): array {
+	$max_bytes = max_response_bytes();
+
+	return [
+		'rest-api/read'   => [
+			'label'       => 'Read REST API',
+			'methods'     => [ 'GET', 'OPTIONS' ],
+			'description' => sprintf(
+				'Read any WordPress REST API endpoint internally, or inspect a route\'s parameters with OPTIONS. Call GET / for a list of every route and the methods it accepts, then OPTIONS on one route for its parameters. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
+				$max_bytes
+			),
+			'annotations' => [
+				'readonly'      => true,
+				'destructive'   => false,
+				'idempotent'    => true,
+				'openWorldHint' => true,
+			],
+		],
+		'rest-api/write'  => [
+			'label'       => 'Write REST API',
+			'methods'     => [ 'POST', 'PUT', 'PATCH' ],
+			'description' => sprintf(
+				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields.',
+				$max_bytes
+			),
+			'annotations' => [
+				'readonly'      => false,
+				'destructive'   => false,
+				'idempotent'    => false,
+				'openWorldHint' => true,
+			],
+		],
+		'rest-api/delete' => [
+			'label'       => 'Delete REST API',
+			'methods'     => [ 'DELETE' ],
+			'description' => sprintf(
+				'Delete data through any WordPress REST API endpoint internally. Use rest-api/read first to confirm what a route holds — deletions take effect on the live site immediately and may not be reversible. Responses are capped at %d bytes and trimmed when they exceed it.',
+				$max_bytes
+			),
+			'annotations' => [
+				'readonly'      => false,
+				'destructive'   => true,
+				'idempotent'    => false,
+				'openWorldHint' => true,
+			],
+		],
+	];
+}
+
+/**
+ * Registers the REST API read, write, and delete abilities.
  */
 function register_ability(): void {
-	wp_register_ability(
-		'rest-api/call',
-		[
-			'label'               => 'Call REST API',
-			'description'         => sprintf(
-				'Execute any WordPress REST API endpoint internally. To find out what is available, call GET / for a list of every route and the methods it accepts, then OPTIONS on one route for its parameters. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
-				max_response_bytes()
-			),
-			'category'            => 'rest-api',
-			'input_schema'        => [
-				'type'       => 'object',
-				'properties' => [
-					'method' => [
-						'type'        => 'string',
-						'enum'        => [ 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS' ],
-						'description' => 'HTTP method',
+	foreach ( tool_definitions() as $name => $tool ) {
+		wp_register_ability(
+			$name,
+			[
+				'label'               => $tool['label'],
+				'description'         => $tool['description'],
+				'category'            => 'rest-api',
+				'input_schema'        => [
+					'type'       => 'object',
+					'properties' => [
+						'method' => [
+							'type'        => 'string',
+							'enum'        => $tool['methods'],
+							'description' => 'HTTP method',
+						],
+						'route'  => [
+							'type'        => 'string',
+							'description' => 'REST API route path, e.g. /wp/v2/posts or /wp/v2/posts/123',
+						],
+						'params' => [
+							'type'                 => 'object',
+							'description'          => 'Query params (GET/DELETE) or body params (POST/PUT/PATCH). Pass _fields to limit which fields come back.',
+							'additionalProperties' => true,
+						],
 					],
-					'route'  => [
-						'type'        => 'string',
-						'description' => 'REST API route path, e.g. /wp/v2/posts or /wp/v2/posts/123',
+					'required'   => [ 'method', 'route' ],
+				],
+				'permission_callback' => __NAMESPACE__ . '\\check_permission',
+				'execute_callback'    => __NAMESPACE__ . '\\execute',
+				'meta'                => [
+					'mcp'         => [
+						'public' => true,
+						'type'   => 'tool',
 					],
-					'params' => [
-						'type'                 => 'object',
-						'description'          => 'Query params (GET/DELETE) or body params (POST/PUT/PATCH). Pass _fields to limit which fields come back.',
-						'additionalProperties' => true,
-					],
+					'annotations' => $tool['annotations'],
 				],
-				'required'   => [ 'method', 'route' ],
-			],
-			'permission_callback' => __NAMESPACE__ . '\\check_permission',
-			'execute_callback'    => __NAMESPACE__ . '\\execute',
-			'meta'                => [
-				'mcp'         => [
-					'public' => true,
-					'type'   => 'tool',
-				],
-				'annotations' => [
-					'readonly'    => false,
-					'destructive' => true,
-					'idempotent'  => false,
-				],
-			],
-		]
-	);
+			]
+		);
+	}
 }
 
 /**
@@ -254,7 +308,7 @@ function condense_routes( $data ) {
 function max_response_bytes(): int {
 	/**
 	 * Filters the maximum size, in bytes, of the response data returned for a
-	 * single `rest-api/call`. Zero or less disables trimming.
+	 * single read, write, or delete call. Zero or less disables trimming.
 	 *
 	 * @param int $max_bytes Maximum response size in bytes.
 	 */
@@ -359,10 +413,10 @@ function encoded_size( $value ): int {
 
 /**
  * Filters the default MCP Adapter server config to namespace it by site, and
- * to expose this ability as a tool in its own right.
+ * to expose these abilities as tools in their own right.
  *
- * Without this the ability is only reachable through the adapter's generic
- * `execute-ability` tool, which hides its input schema behind a generic one.
+ * Without this the abilities are only reachable through the adapter's generic
+ * `execute-ability` tool, which hides their input schemas behind a generic one.
  *
  * @param array $config Default server config.
  * @return array
@@ -373,8 +427,7 @@ function filter_mcp_server_config( array $config ): array {
 	$config['server_name']  = get_bloginfo( 'name' ) . ' MCP Server';
 	$config['server_route'] = 'mcp-' . $site_name;
 
-	$tools           = $config['tools'] ?? [];
-	$tools[]         = 'rest-api/call';
+	$tools           = array_merge( $config['tools'] ?? [], array_keys( tool_definitions() ) );
 	$config['tools'] = array_values( array_unique( $tools ) );
 
 	return $config;
