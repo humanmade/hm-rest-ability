@@ -49,7 +49,7 @@
 		},
 		{
 			"step": "runPHP",
-			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n$user = get_user_by( 'login', 'admin' );\nlist( $password ) = WP_Application_Passwords::create_new_application_password( $user->ID, [ 'name' => 'e2e-tests' ] );\nfile_put_contents(\n\t'/wordpress/wp-content/plugins/hm-rest-ability/.playground-credentials.json',\n\tjson_encode( [ 'user' => $user->user_login, 'password' => $password ] )\n);"
+			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n\n$accounts = [];\n\nforeach ( [ 'admin' => null, 'subscriber' => 'subscriber' ] as $login => $role ) {\n\tif ( $role === null ) {\n\t\t$user = get_user_by( 'login', $login );\n\t} else {\n\t\t$user_id = wp_insert_user( [\n\t\t\t'user_login' => $login,\n\t\t\t'user_pass'  => wp_generate_password( 20 ),\n\t\t\t'user_email' => $login . '@example.com',\n\t\t\t'role'       => $role,\n\t\t] );\n\t\t$user = get_user_by( 'id', $user_id );\n\t}\n\n\tlist( $password ) = WP_Application_Passwords::create_new_application_password(\n\t\t$user->ID,\n\t\t[ 'name' => 'e2e-tests' ]\n\t);\n\n\t$accounts[ $login ] = [ 'user' => $user->user_login, 'password' => $password ];\n}\n\nfile_put_contents(\n\t'/wordpress/wp-content/plugins/hm-rest-ability/.playground-credentials.json',\n\tjson_encode( $accounts )\n);"
 		}
 	]
 }

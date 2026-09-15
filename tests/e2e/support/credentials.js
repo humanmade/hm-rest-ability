@@ -18,14 +18,15 @@ const CREDENTIALS_FILE = '.playground-credentials.json';
 const NO_AUTO_LOGIN_COOKIE = 'playground_auto_login_already_happened=1';
 
 /**
- * Reads the application password the blueprint creates at boot.
+ * Reads the application passwords the blueprint creates at boot.
  *
- * The blueprint writes it into the mounted plugin directory, so it lands on
+ * The blueprint writes them into the mounted plugin directory, so they land on
  * the host filesystem next to this repo.
  *
- * @return {{user: string, password: string}} The admin credentials.
+ * @param {string} role Account to read: `admin` or `subscriber`.
+ * @return {{user: string, password: string}} That account's credentials.
  */
-function readCredentials() {
+function readCredentials( role = 'admin' ) {
 	const file = path.resolve( process.cwd(), CREDENTIALS_FILE );
 
 	if ( ! fs.existsSync( file ) ) {
@@ -34,16 +35,25 @@ function readCredentials() {
 		);
 	}
 
-	return JSON.parse( fs.readFileSync( file, 'utf8' ) );
+	const accounts = JSON.parse( fs.readFileSync( file, 'utf8' ) );
+
+	if ( ! accounts[ role ] ) {
+		throw new Error(
+			`No credentials for "${ role }". Found: ${ Object.keys( accounts ).join( ', ' ) }`
+		);
+	}
+
+	return accounts[ role ];
 }
 
 /**
- * Returns the headers needed to authenticate as the admin user.
+ * Returns the headers needed to authenticate as one of the test accounts.
  *
+ * @param {string} role Account to authenticate as: `admin` or `subscriber`.
  * @return {{Authorization: string, Cookie: string}} Request headers.
  */
-function authHeaders() {
-	const { user, password } = readCredentials();
+function authHeaders( role = 'admin' ) {
+	const { user, password } = readCredentials( role );
 	const token = Buffer.from( `${ user }:${ password }` ).toString( 'base64' );
 
 	return {
