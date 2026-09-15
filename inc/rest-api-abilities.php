@@ -115,6 +115,13 @@ function check_permission( array $input ): bool|WP_Error {
 		if ( ! preg_match( '#^' . $pattern . '[/]*$#i', $route, $matches ) ) {
 			continue;
 		}
+
+		// OPTIONS only reads route metadata via describe_route(); no handler
+		// registers it as a method, so matching the route is enough.
+		if ( 'OPTIONS' === $method ) {
+			return true;
+		}
+
 		$url_params = array_filter( $matches, 'is_string', ARRAY_FILTER_USE_KEY );
 		$request->set_url_params( $url_params );
 		foreach ( $handlers as $handler ) {

@@ -47,6 +47,40 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'rest_no_route', $result->get_error_code() );
 	}
 
+	public function test_check_permission_allows_options_on_a_matched_route(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[
+					// OPTIONS is never a registered method here — core handles
+					// it separately from dispatch — so only GET is listed.
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => static fn () => false,
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_check_permission_denies_options_on_an_unmatched_route(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [ 'method' => 'OPTIONS', 'route' => '/does/not/exist' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'rest_no_route', $result->get_error_code() );
+	}
+
 	public function test_check_permission_runs_the_route_permission_callback(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
 
