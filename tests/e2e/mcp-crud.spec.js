@@ -225,7 +225,7 @@ test.describe( 'MCP discovery', () => {
 	test( 'denies an unknown route rather than dispatching it', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 
-		const result = await client.callTool( 'rest-api-call', {
+		const result = await client.callTool( 'rest-api-read', {
 			method: 'OPTIONS',
 			route: '/wp/v2/not-a-route',
 		} );

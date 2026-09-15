@@ -100,8 +100,9 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
   removed from `.well-known/` requests (defaults to Human Made's Require
   Login plugin; no-ops elsewhere).
-- `hm_rest_ability_policy` — filter to `deny` a `rest-api/call` after the
-  matched route's own `permission_callback` has already allowed it. Runs
+- `hm_rest_ability_policy` — filter to `deny` a `rest-api/read`,
+  `rest-api/write`, or `rest-api/delete` call after the matched route's own
+  `permission_callback` has already allowed it. Runs
   after capabilities, so it can only narrow access, never grant access a
   user's capabilities would not otherwise allow. Allows everything by
   default. Example, blocking writes to settings, plugins and themes:
