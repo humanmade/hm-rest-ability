@@ -29,5 +29,6 @@ define( 'HM_REST_ABILITY_URL', plugin_dir_url( __FILE__ ) );
 
 require_once HM_REST_ABILITY_PATH . 'inc/oauth2-discovery.php';
 require_once HM_REST_ABILITY_PATH . 'inc/route-risk.php';
+require_once HM_REST_ABILITY_PATH . 'inc/status-field-guidance.php';
 require_once HM_REST_ABILITY_PATH . 'inc/rest-api-abilities.php';
 require_once HM_REST_ABILITY_PATH . 'inc/media-abilities.php';

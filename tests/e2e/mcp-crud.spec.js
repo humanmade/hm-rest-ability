@@ -222,6 +222,14 @@ test.describe( 'MCP discovery', () => {
 		expect( args ).toContain( 'status' );
 	} );
 
+	test( 'adds guidance about the status field for a publishable route', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const result = await rest( client, 'OPTIONS', '/wp/v2/posts' );
+
+		expect( result.guidance ).toContain( 'already defaults to draft' );
+	} );
+
 	test( 'denies an unknown route rather than dispatching it', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 

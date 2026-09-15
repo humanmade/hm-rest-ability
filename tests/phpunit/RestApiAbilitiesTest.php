@@ -491,6 +491,38 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'This cannot be undone. Confirm with the user before calling, and say exactly what will be removed.', $result['guidance'] );
 	}
 
+	public function test_execute_options_applies_the_route_guidance_filter(): void {
+		// route_guidance() is the extension point, not any one guidance
+		// source — this proves the filter fires with the assembled text, the
+		// route, and the handlers, and that a hooked callback's return value
+		// wins. What a hooked callback actually does (e.g. the status-field
+		// example in inc/status-field-guidance.php) is that module's own
+		// concern, tested in its own suite.
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[ 'methods' => [ 'GET' => true, 'POST' => true ] ],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		Functions\when( 'apply_filters' )->alias(
+			static function ( string $tag, $value, ...$args ) {
+				if ( 'hm_rest_ability_route_guidance' !== $tag ) {
+					return $value;
+				}
+
+				[ $route, $handlers ] = $args;
+
+				return $value . '|' . $route . '|' . ( isset( $handlers[0] ) ? 'has-handlers' : 'no-handlers' );
+			}
+		);
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertSame( '|/wp/v2/posts|has-handlers', $result['guidance'] );
+	}
+
 	public function test_execute_reports_an_unknown_route_for_options(): void {
 		$server = new WP_REST_Server();
 		$server->set_routes( [] );

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Make the `guidance` text an `OPTIONS` response carries filterable with
+  `hm_rest_ability_route_guidance`, so a site can add its own advice for a
+  route beyond the built-in risk-tier guidance.
+- Add a guidance note to `OPTIONS` output for a route with a publishable
+  `status` field, e.g. `/wp/v2/posts` — creating an item there already
+  defaults to `draft` when `status` is omitted, so a client is told not to
+  set it to `publish` unless the user asked for that. This is a built-in
+  example of using the new `hm_rest_ability_route_guidance` filter, in
+  `inc/status-field-guidance.php`.
+
 ### Changed
 
 - **Breaking:** split the `rest-api/call` ability into `rest-api/read` (`GET`,

@@ -344,13 +344,14 @@ function describe_route( string $route ): array {
  *
  * A route can register several methods under one pattern — for example GET
  * and DELETE on the same post — so this checks every non-read method the
- * route handles and returns guidance for the highest risk tier found. GET and
- * HEAD are never risky and are skipped.
+ * route handles and uses the highest risk tier found. GET and HEAD are never
+ * risky and are skipped.
  *
  * @param string $route    REST route path.
  * @param array  $handlers Route handlers, as returned by
  *                          WP_REST_Server::get_routes().
- * @return string Guidance sentence, or an empty string for a routine route.
+ * @return string Guidance sentence, or an empty string for a routine route
+ *                with nothing else registered.
  */
 function route_guidance( string $route, array $handlers ): string {
 	$risk = 'routine';
@@ -364,7 +365,8 @@ function route_guidance( string $route, array $handlers ): string {
 			$method_risk = classify_route( $route, $method );
 
 			if ( 'irreversible' === $method_risk ) {
-				return guidance_for_risk( 'irreversible' );
+				$risk = 'irreversible';
+				break 2;
 			}
 
 			if ( 'site-config' === $method_risk ) {
@@ -373,7 +375,24 @@ function route_guidance( string $route, array $handlers ): string {
 		}
 	}
 
-	return guidance_for_risk( $risk );
+	$guidance = guidance_for_risk( $risk );
+
+	/**
+	 * Filters the guidance text for a route.
+	 *
+	 * Fires after the built-in risk-tier guidance is assembled, so a
+	 * callback can add to it, replace it, or supply guidance for something
+	 * the risk tiers don't cover. This plugin registers one such callback
+	 * itself, in inc/status-field-guidance.php, as a working example: it
+	 * flags a route with a publishable `status` field.
+	 *
+	 * @param string $guidance Guidance text so far, or '' for a routine
+	 *                          route with nothing else registered.
+	 * @param string $route    REST route path.
+	 * @param array  $handlers Route handlers, as returned by
+	 *                          WP_REST_Server::get_routes().
+	 */
+	return apply_filters( 'hm_rest_ability_route_guidance', $guidance, $route, $handlers );
 }
 
 /**
