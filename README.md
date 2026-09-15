@@ -46,6 +46,13 @@ plugin and the WordPress Abilities API.
   of the ~1MB full index. `OPTIONS /wp/v2/posts` then returns that one route's
   parameters. Core only answers `OPTIONS` when serving a real HTTP request, so
   the ability builds the same description from the route table itself.
+- Adds confirmation guidance where it matters. `rest-api/write` and
+  `rest-api/delete` ask a client to confirm with the user before calling. An
+  `OPTIONS` response also carries a `guidance` key for a route that changes
+  site settings or access (`/wp/v2/settings`, `/wp/v2/users`, `/wp/v2/plugins`,
+  and similar), or that deletes one — routine routes get nothing extra.
+  This is advice, not enforcement: WordPress capabilities still decide what a
+  user may do. Reclassify a route with the `hm_rest_ability_route_risk` filter.
 
 **Media upload ability** (`inc/media-abilities.php`)
 
