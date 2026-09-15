@@ -52,7 +52,15 @@ plugin and the WordPress Abilities API.
   site settings or access (`/wp/v2/settings`, `/wp/v2/users`, `/wp/v2/plugins`,
   and similar), or that deletes one — routine routes get nothing extra.
   This is advice, not enforcement: WordPress capabilities still decide what a
-  user may do. Reclassify a route with the `hm_rest_ability_route_risk` filter.
+  user may do. Reclassify a route with the `hm_rest_ability_route_risk`
+  filter, or add to the guidance text itself with `hm_rest_ability_route_guidance`.
+  The plugin uses that second filter itself, as a working example: a route
+  with a WordPress-style `status` field, such as `/wp/v2/posts`, gets a note
+  that creating an item there already defaults to `draft` when `status` is
+  omitted, so a client shouldn't set it to `publish` unless the user asked
+  for that. Detected from the route's own schema (a `status` argument whose
+  `enum` includes `publish`), not a hardcoded list of routes, so it covers
+  custom post types too — see `inc/status-field-guidance.php`.
 
 **Media upload ability** (`inc/media-abilities.php`)
 
@@ -100,6 +108,14 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
   removed from `.well-known/` requests (defaults to Human Made's Require
   Login plugin; no-ops elsewhere).
+- `hm_rest_ability_route_guidance` — filter the `guidance` text an `OPTIONS`
+  response carries for a route, after the built-in risk-tier guidance is
+  assembled (`$guidance, $route, $handlers`). Add to it, replace it, or
+  return `''` to suppress it. `inc/status-field-guidance.php` hooks this
+  itself to flag a publishable `status` field — remove just that with
+  `remove_filter( 'hm_rest_ability_route_guidance', 'HM\StatusFieldGuidance\add_guidance' )`,
+  or add your own hooked callback alongside it for anything else worth
+  flagging.
 - `hm_rest_ability_policy` — filter to `deny` a `rest-api/read`,
   `rest-api/write`, or `rest-api/delete` call after the matched route's own
   `permission_callback` has already allowed it. Runs
