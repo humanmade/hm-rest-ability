@@ -208,12 +208,15 @@ test.describe( 'MCP discovery', () => {
 		expect( args ).toContain( 'status' );
 	} );
 
-	test( 'reports an unknown route rather than failing', async ( { request } ) => {
+	test( 'denies an unknown route rather than dispatching it', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 
-		const result = await rest( client, 'OPTIONS', '/wp/v2/not-a-route' );
+		const result = await client.callTool( 'rest-api-call', {
+			method: 'OPTIONS',
+			route: '/wp/v2/not-a-route',
+		} );
 
-		expect( result.status ).toBe( 404 );
-		expect( result.error ).toContain( '/wp/v2/not-a-route' );
+		expect( result.isError ).toBe( true );
+		expect( result.text ).toContain( 'No route matches' );
 	} );
 } );
