@@ -36,6 +36,7 @@ class RestApiAbilitiesTest extends TestCase {
 
 	public function test_check_permission_denies_unmatched_routes(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
 
 		$server = new WP_REST_Server();
 		$server->set_routes( [] );
@@ -102,6 +103,7 @@ class RestApiAbilitiesTest extends TestCase {
 
 	public function test_check_permission_allows_return_true_shortcut(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
 
 		$server = new WP_REST_Server();
 		$server->set_routes( [
@@ -117,6 +119,77 @@ class RestApiAbilitiesTest extends TestCase {
 		$result = check_permission( [ 'method' => 'GET', 'route' => '/wp/v2/posts' ] );
 
 		$this->assertTrue( $result );
+	}
+
+	public function test_check_permission_policy_filter_never_runs_after_a_capability_denial(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => static fn () => false,
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		// apply_filters is deliberately left unstubbed: if the policy filter
+		// ran after a capability denial, Brain Monkey would fail this test
+		// for calling an unexpected function.
+		$result = check_permission( [ 'method' => 'GET', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertFalse( $result );
+	}
+
+	public function test_check_permission_applies_the_policy_filter_with_the_call_details(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => '__return_true',
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		Functions\expect( 'apply_filters' )
+			->once()
+			->with( 'hm_rest_ability_policy', 'allow', 'GET', '/wp/v2/posts', [ 'per_page' => 5 ] )
+			->andReturn( 'allow' );
+
+		$result = check_permission( [
+			'method' => 'GET',
+			'route'  => '/wp/v2/posts',
+			'params' => [ 'per_page' => 5 ],
+		] );
+
+		$this->assertTrue( $result );
+	}
+
+	public function test_check_permission_denies_when_the_policy_filter_returns_deny(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[
+					'methods'             => [ 'DELETE' => true ],
+					'permission_callback' => '__return_true',
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+		Functions\when( 'apply_filters' )->justReturn( 'deny' );
+
+		$result = check_permission( [ 'method' => 'DELETE', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'rest_ability_policy_denied', $result->get_error_code() );
 	}
 
 	public function test_build_request_sets_query_params_for_get(): void {

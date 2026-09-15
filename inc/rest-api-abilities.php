@@ -91,8 +91,10 @@ function register_ability(): void {
 }
 
 /**
- * Checks whether the current user can perform the requested REST API call,
- * by running the matched endpoint's own permission_callback.
+ * Checks whether the current user can perform the requested REST API call.
+ *
+ * Runs the matched endpoint's own permission_callback first, then gives site
+ * policy a chance to narrow that further.
  *
  * @param array $input Ability input, keyed by `method`, `route`, `params`.
  * @return bool|WP_Error
@@ -106,7 +108,25 @@ function check_permission( array $input ): bool|WP_Error {
 	$method = strtoupper( $input['method'] ?? 'GET' );
 	$params = $input['params'] ?? [];
 
-	// Run the endpoint's own permission_callback to enforce its access rules.
+	$allowed = endpoint_permission( $method, $route, $params );
+
+	if ( true !== $allowed ) {
+		return $allowed;
+	}
+
+	return apply_policy( $method, $route, $params );
+}
+
+/**
+ * Checks whether the matched endpoint's own permission_callback allows the
+ * requested REST API call.
+ *
+ * @param string $method HTTP method.
+ * @param string $route  REST route path.
+ * @param array  $params Query or body params.
+ * @return bool|WP_Error
+ */
+function endpoint_permission( string $method, string $route, array $params ): bool|WP_Error {
 	$server    = rest_get_server();
 	$request   = build_request( $method, $route, $params );
 	$endpoints = $server->get_routes();
@@ -142,6 +162,38 @@ function check_permission( array $input ): bool|WP_Error {
 
 	// No matching route found, so there's no permission_callback to defer to.
 	return new WP_Error( 'rest_no_route', 'No route matches the given path.', [ 'status' => 404 ] );
+}
+
+/**
+ * Gives site policy a chance to deny a REST API call the matched endpoint's
+ * own permission_callback has already allowed.
+ *
+ * @param string $method HTTP method.
+ * @param string $route  REST route path.
+ * @param array  $params Query or body params.
+ * @return bool|WP_Error
+ */
+function apply_policy( string $method, string $route, array $params ): bool|WP_Error {
+	/**
+	 * Filters whether a REST API call is allowed by site policy.
+	 *
+	 * Runs only once the matched endpoint's own permission_callback has
+	 * already allowed the call, so a hooked callback can narrow access but
+	 * never grant access a user's capabilities would not otherwise allow.
+	 * Nothing is denied by default.
+	 *
+	 * @param string $decision 'allow' (default) or 'deny'.
+	 * @param string $method   HTTP method.
+	 * @param string $route    REST route path.
+	 * @param array  $params   Query or body params.
+	 */
+	$decision = apply_filters( 'hm_rest_ability_policy', 'allow', $method, $route, $params );
+
+	if ( 'deny' === $decision ) {
+		return new WP_Error( 'rest_ability_policy_denied', 'This action is blocked by site policy.' );
+	}
+
+	return true;
 }
 
 /**
