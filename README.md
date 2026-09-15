@@ -80,6 +80,29 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
   removed from `.well-known/` requests (defaults to Human Made's Require
   Login plugin; no-ops elsewhere).
+- `hm_rest_ability_policy` — filter to `deny` a `rest-api/call` after the
+  matched route's own `permission_callback` has already allowed it. Runs
+  after capabilities, so it can only narrow access, never grant access a
+  user's capabilities would not otherwise allow. Allows everything by
+  default. Example, blocking writes to settings, plugins and themes:
+
+  ```php
+  add_filter( 'hm_rest_ability_policy', function ( $decision, $method, $route, $params ) {
+      if ( 'GET' === $method ) {
+          return $decision;
+      }
+
+      $locked_down = [ '/wp/v2/settings', '/wp/v2/plugins', '/wp/v2/themes' ];
+
+      foreach ( $locked_down as $prefix ) {
+          if ( str_starts_with( $route, $prefix ) ) {
+              return 'deny';
+          }
+      }
+
+      return $decision;
+  }, 10, 4 );
+  ```
 
 ## Development
 
