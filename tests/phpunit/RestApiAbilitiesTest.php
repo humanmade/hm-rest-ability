@@ -23,6 +23,7 @@ class RestApiAbilitiesTest extends TestCase {
 
 	protected function set_up(): void {
 		parent::set_up();
+		$this->load_plugin_file( 'inc/route-risk.php' );
 		$this->load_plugin_file( 'inc/rest-api-abilities.php' );
 	}
 
@@ -101,6 +102,14 @@ class RestApiAbilitiesTest extends TestCase {
 			],
 			$registered['rest-api/delete']['meta']['annotations']
 		);
+	}
+
+	public function test_register_ability_asks_write_and_delete_tools_to_confirm_with_the_user(): void {
+		$registered = $this->register_and_capture();
+
+		$this->assertStringContainsString( 'Confirm with the user before calling', $registered['rest-api/write']['description'] );
+		$this->assertStringContainsString( 'Confirm with the user before calling', $registered['rest-api/delete']['description'] );
+		$this->assertStringNotContainsString( 'Confirm with the user before calling', $registered['rest-api/read']['description'] );
 	}
 
 	public function test_register_ability_shares_permission_and_execute_callbacks(): void {
@@ -343,6 +352,35 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$this->assertSame( 200, $result['status'] );
 		$this->assertSame( [ 'GET', 'POST' ], $result['data']['methods'] );
+		$this->assertArrayNotHasKey( 'guidance', $result );
+	}
+
+	public function test_execute_options_adds_guidance_for_site_config_routes(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/settings' => [
+				[ 'methods' => [ 'GET' => true, 'POST' => true ] ],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/settings' ] );
+
+		$this->assertSame( 'This changes site settings or access. Confirm with the user before calling, and say what will change.', $result['guidance'] );
+	}
+
+	public function test_execute_options_adds_guidance_for_irreversible_routes(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/users/(?P<id>\d+)' => [
+				[ 'methods' => [ 'GET' => true, 'DELETE' => true ] ],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/users/5' ] );
+
+		$this->assertSame( 'This cannot be undone. Confirm with the user before calling, and say exactly what will be removed.', $result['guidance'] );
 	}
 
 	public function test_execute_reports_an_unknown_route_for_options(): void {

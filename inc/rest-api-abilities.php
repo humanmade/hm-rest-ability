@@ -13,6 +13,9 @@ namespace HM\RestApiAbilities;
 use WP_Error;
 use WP_REST_Request;
 
+use function HM\RouteRisk\classify_route;
+use function HM\RouteRisk\guidance_for_risk;
+
 // Exit if accessed directly.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -72,7 +75,7 @@ function tool_definitions(): array {
 			'label'       => 'Write REST API',
 			'methods'     => [ 'POST', 'PUT', 'PATCH' ],
 			'description' => sprintf(
-				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields.',
+				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields. Confirm with the user before calling, and say what will change.',
 				$max_bytes
 			),
 			'annotations' => [
@@ -86,7 +89,7 @@ function tool_definitions(): array {
 			'label'       => 'Delete REST API',
 			'methods'     => [ 'DELETE' ],
 			'description' => sprintf(
-				'Delete data through any WordPress REST API endpoint internally. Use rest-api/read first to confirm what a route holds — deletions take effect on the live site immediately and may not be reversible. Responses are capped at %d bytes and trimmed when they exceed it.',
+				'Delete data through any WordPress REST API endpoint internally. Use rest-api/read first to confirm what a route holds — deletions take effect on the live site immediately and may not be reversible. Responses are capped at %d bytes and trimmed when they exceed it. Confirm with the user before calling, and say what will change.',
 				$max_bytes
 			),
 			'annotations' => [
@@ -263,6 +266,11 @@ function describe_route( string $route ): array {
 			$result['truncated'] = $capped['truncated'];
 		}
 
+		$guidance = route_guidance( $route, $handlers );
+		if ( '' !== $guidance ) {
+			$result['guidance'] = $guidance;
+		}
+
 		return $result;
 	}
 
@@ -270,6 +278,43 @@ function describe_route( string $route ): array {
 		'status' => 404,
 		'error'  => sprintf( 'No route matches %s.', $route ),
 	];
+}
+
+/**
+ * Returns guidance for a route, based on the riskiest method it supports.
+ *
+ * A route can register several methods under one pattern — for example GET
+ * and DELETE on the same post — so this checks every non-read method the
+ * route handles and returns guidance for the highest risk tier found. GET and
+ * HEAD are never risky and are skipped.
+ *
+ * @param string $route    REST route path.
+ * @param array  $handlers Route handlers, as returned by
+ *                          WP_REST_Server::get_routes().
+ * @return string Guidance sentence, or an empty string for a routine route.
+ */
+function route_guidance( string $route, array $handlers ): string {
+	$risk = 'routine';
+
+	foreach ( $handlers as $handler ) {
+		foreach ( array_keys( $handler['methods'] ?? [] ) as $method ) {
+			if ( in_array( $method, [ 'GET', 'HEAD' ], true ) ) {
+				continue;
+			}
+
+			$method_risk = classify_route( $route, $method );
+
+			if ( 'irreversible' === $method_risk ) {
+				return guidance_for_risk( 'irreversible' );
+			}
+
+			if ( 'site-config' === $method_risk ) {
+				$risk = 'site-config';
+			}
+		}
+	}
+
+	return guidance_for_risk( $risk );
 }
 
 /**
