@@ -34,7 +34,7 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'rest_not_logged_in', $result->get_error_code() );
 	}
 
-	public function test_check_permission_allows_unmatched_routes(): void {
+	public function test_check_permission_denies_unmatched_routes(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
 
 		$server = new WP_REST_Server();
@@ -43,7 +43,8 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$result = check_permission( [ 'method' => 'GET', 'route' => '/does/not/exist' ] );
 
-		$this->assertTrue( $result );
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'rest_no_route', $result->get_error_code() );
 	}
 
 	public function test_check_permission_runs_the_route_permission_callback(): void {

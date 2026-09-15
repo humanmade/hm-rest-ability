@@ -133,8 +133,8 @@ function check_permission( array $input ): bool|WP_Error {
 		}
 	}
 
-	// No matching route found — let the dispatch handle the 404.
-	return true;
+	// No matching route found, so there's no permission_callback to defer to.
+	return new WP_Error( 'rest_no_route', 'No route matches the given path.', [ 'status' => 404 ] );
 }
 
 /**
