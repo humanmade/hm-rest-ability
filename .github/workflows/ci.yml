@@ -56,3 +56,30 @@ jobs:
 
             - name: Run PHPUnit
               run: composer test
+
+    evals:
+        name: Eval harness (scripted)
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 24
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            # Replays fixed tool calls instead of asking a model, so this
+            # costs nothing and is safe to run on pull requests, including
+            # ones from forks. It checks the harness itself: the MCP
+            # connection, tool discovery, the turn loop, and every scenario's
+            # setup and grading.
+            - name: Run the scripted evals
+              run: npm run test:evals:scripted
+              env:
+                  WP_PLAYGROUND_PORT: 9401

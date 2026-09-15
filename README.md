@@ -100,6 +100,23 @@ npm install
   `ANTHROPIC_API_KEY`. Defaults to `claude-haiku-4-5`; override with
   `EVAL_MODEL`. Add `--repeat=3` to average over several runs.
 
+## Evals in CI
+
+Two levels, split by what they cost:
+
+- The **scripted** run is part of `CI` on every push and pull request. It
+  replays fixed tool calls instead of asking a model, so it is free and
+  deterministic, and it runs on fork pull requests too. It checks the harness,
+  not the model.
+- The **model** run is the `Evals` workflow. It runs on pushes to `main` and
+  on manual dispatch — no schedule — and is skipped on forks, which cannot
+  read secrets. It needs an `ANTHROPIC_API_KEY` repository or organisation
+  secret, and skips with a note if one isn't set.
+
+Each scenario runs three times and passes on a majority. Only scenarios tagged
+`core` can fail the build, because a model is not deterministic. Results are
+written to the job summary and uploaded as an artifact.
+
 ## Release process
 
 Releases are cut from the Actions tab: **Release** workflow → run with the
