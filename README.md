@@ -61,6 +61,12 @@ plugin and the WordPress Abilities API.
   for that. Detected from the route's own schema (a `status` argument whose
   `enum` includes `publish`), not a hardcoded list of routes, so it covers
   custom post types too — see `inc/status-field-guidance.php`.
+  A second module does the same for the `content` field: a route whose
+  content is stored as block markup gets a note saying so, and pointing at
+  `GET /wp/v2/block-types` for the blocks that site has registered — a route
+  the same abilities can already call. Detected from the schema again (a
+  `content` object with a `block_version` property, which core adds only for
+  post types that support the editor) — see `inc/content-field-guidance.php`.
 
 **Media upload ability** (`inc/media-abilities.php`)
 
@@ -111,10 +117,12 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_route_guidance` — filter the `guidance` text an `OPTIONS`
   response carries for a route, after the built-in risk-tier guidance is
   assembled (`$guidance, $route, $handlers`). Add to it, replace it, or
-  return `''` to suppress it. `inc/status-field-guidance.php` hooks this
-  itself to flag a publishable `status` field — remove just that with
+  return `''` to suppress it. Two modules hook it themselves:
+  `inc/status-field-guidance.php` flags a publishable `status` field, and
+  `inc/content-field-guidance.php` flags a block-markup `content` field.
+  Remove either on its own, for example
   `remove_filter( 'hm_rest_ability_route_guidance', 'HM\StatusFieldGuidance\add_guidance' )`,
-  or add your own hooked callback alongside it for anything else worth
+  or add your own hooked callback alongside them for anything else worth
   flagging.
 - `hm_rest_ability_policy` — filter to `deny` a `rest-api/read`,
   `rest-api/write`, or `rest-api/delete` call after the matched route's own
@@ -140,6 +148,57 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
       return $decision;
   }, 10, 4 );
   ```
+
+## Using this with an agent
+
+The plugin tells an agent what a route is for and where to be careful. It
+doesn't tell it how to write block markup, because that isn't the plugin's
+job — and the tools that do it well live outside WordPress.
+
+`skills/wordpress-block-content/SKILL.md` covers that gap. It's a skill file
+for agent harnesses that read them, such as Claude Code. It explains the
+two-step route lookup, that a post's `content` is block markup, how to upload
+an image before referencing it, and it points at two Human Made npm packages:
+
+- [`wesper`](https://github.com/humanmade/wesper) — collects one JSON manifest
+  of what a site actually registers: block types, post types, bindable fields,
+  patterns, theme.json.
+- [`block-runner`](https://github.com/humanmade/block-runner) — turns HTML or
+  a block tree into block markup, validated with Gutenberg's own packages.
+  It ships its own skill, which the one here defers to.
+
+Neither is required. The skill says what to do when they aren't installed.
+
+The skill belongs in your project, not on the server, so it isn't in the
+release ZIP or the Composer package. Copy it from a checkout of this repo
+into your project's skills directory:
+
+```bash
+cp -r skills/wordpress-block-content /path/to/your-project/.claude/skills/
+```
+
+Then a prompt like this has what it needs:
+
+> Add a case study page to the site for the Acme rebrand, with a heading, two
+> paragraphs and the hero image from ./hero.jpg. Leave it as a draft.
+
+### Putting it in the tool output instead
+
+The skill is the default because tool descriptions are sent on every request,
+and a site's agents may not have Node at all. If you'd rather the advice
+travel with the tools, add it to the route guidance yourself:
+
+```php
+add_filter( 'hm_rest_ability_route_guidance', function ( $guidance, $route, $handlers ) {
+    if ( ! \HM\ContentFieldGuidance\has_block_content_field( $handlers ) ) {
+        return $guidance;
+    }
+
+    $note = 'Generate block markup with `npx block-runner convert`, not by hand.';
+
+    return '' === $guidance ? $note : $guidance . ' ' . $note;
+}, 10, 3 );
+```
 
 ## Development
 

@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set it to `publish` unless the user asked for that. This is a built-in
   example of using the new `hm_rest_ability_route_guidance` filter, in
   `inc/status-field-guidance.php`.
+- Add a guidance note to `OPTIONS` output for a route whose `content` field
+  holds block markup, e.g. `/wp/v2/posts` — it says the field holds WordPress
+  block markup and points at `GET /wp/v2/block-types` for the blocks that
+  site has registered. Detected from the route's schema, in
+  `inc/content-field-guidance.php`.
+- Ship an opt-in skill file, `skills/wordpress-block-content/SKILL.md`, for
+  agent harnesses that read them. It covers route lookup, block markup and
+  media upload through these abilities, and points at the `wesper` and
+  `block-runner` npm packages, with a fallback for when they aren't
+  installed. Nothing in the plugin's own tool output names them. The skill
+  is `export-ignore`d, so it stays out of the release ZIP.
 
 ### Changed
 
