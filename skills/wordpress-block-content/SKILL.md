@@ -53,13 +53,29 @@ available:
   re-querying.
 
   ```bash
+  # local install, via WP-CLI
   npx wesper collect --wp-path ./public --out site.context.json
+
+  # remote site, via REST (password in WP_API_PASSWORD)
+  npx wesper collect --rest --wp-url https://example.com \
+    --wp-user <user> --out site.context.json
+
   npx wesper summarize site.context.json
   ```
 
-  It needs WP-CLI on `PATH`, or REST credentials (an Application Password for
-  full coverage; anonymous access gives a partial manifest). It never
-  modifies the site.
+  The REST collector reaches further than you might expect. An Application
+  Password for any user who can edit posts — an author role is enough —
+  returns theme.json settings and design tokens, every registered block type
+  with its attributes, and the site's patterns. Anonymous access returns
+  almost none of that: no theme, no blocks, no patterns.
+
+  Use WP-CLI when you need what REST can't reach: Site Editor customizations
+  merged over theme.json, block binding sources, registered image sizes and
+  registered post meta.
+
+  `summarize` prints coverage per surface and says which work the evidence
+  supports — read it before relying on the manifest. wesper never modifies
+  the site.
 
 - **`block-runner`** — turns HTML, or a block tree you describe, into
   validated block markup, checked with the same packages the editor uses.
