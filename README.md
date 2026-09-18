@@ -148,6 +148,57 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
   }, 10, 4 );
   ```
 
+## Using this with an agent
+
+The plugin tells an agent what a route is for and where to be careful. It
+doesn't tell it how to write block markup, because that isn't the plugin's
+job — and the tools that do it well live outside WordPress.
+
+`skills/wordpress-block-content/SKILL.md` covers that gap. It's a skill file
+for agent harnesses that read them, such as Claude Code. It explains the
+two-step route lookup, that a post's `content` is block markup, how to upload
+an image before referencing it, and it points at two Human Made npm packages:
+
+- [`wesper`](https://github.com/humanmade/wesper) — collects one JSON manifest
+  of what a site actually registers: block types, post types, bindable fields,
+  patterns, theme.json.
+- [`block-runner`](https://github.com/humanmade/block-runner) — turns HTML or
+  a block tree into block markup, validated with Gutenberg's own packages.
+  It ships its own skill, which the one here defers to.
+
+Neither is required. The skill says what to do when they aren't installed.
+
+The skill belongs in your project, not on the server, so it isn't in the
+release ZIP or the Composer package. Copy it from a checkout of this repo
+into your project's skills directory:
+
+```bash
+cp -r skills/wordpress-block-content /path/to/your-project/.claude/skills/
+```
+
+Then a prompt like this has what it needs:
+
+> Add a case study page to the site for the Acme rebrand, with a heading, two
+> paragraphs and the hero image from ./hero.jpg. Leave it as a draft.
+
+### Putting it in the tool output instead
+
+The skill is the default because tool descriptions are sent on every request,
+and a site's agents may not have Node at all. If you'd rather the advice
+travel with the tools, add it to the route guidance yourself:
+
+```php
+add_filter( 'hm_rest_ability_route_guidance', function ( $guidance, $route, $handlers ) {
+    if ( ! \HM\ContentFieldGuidance\has_block_content_field( $handlers ) ) {
+        return $guidance;
+    }
+
+    $note = 'Generate block markup with `npx block-runner convert`, not by hand.';
+
+    return '' === $guidance ? $note : $guidance . ' ' . $note;
+}, 10, 3 );
+```
+
 ## Development
 
 ```bash
