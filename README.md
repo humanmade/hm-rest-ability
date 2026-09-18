@@ -61,6 +61,11 @@ plugin and the WordPress Abilities API.
   for that. Detected from the route's own schema (a `status` argument whose
   `enum` includes `publish`), not a hardcoded list of routes, so it covers
   custom post types too — see `inc/status-field-guidance.php`.
+  A second module does the same for the `content` field: a route whose
+  content is stored as block markup gets a note that hand-written block
+  delimiters usually come out invalid. Detected from the schema again (a
+  `content` object with a `block_version` property, which core adds only for
+  post types that support the editor) — see `inc/content-field-guidance.php`.
 
 **Media upload ability** (`inc/media-abilities.php`)
 
@@ -111,10 +116,12 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_route_guidance` — filter the `guidance` text an `OPTIONS`
   response carries for a route, after the built-in risk-tier guidance is
   assembled (`$guidance, $route, $handlers`). Add to it, replace it, or
-  return `''` to suppress it. `inc/status-field-guidance.php` hooks this
-  itself to flag a publishable `status` field — remove just that with
+  return `''` to suppress it. Two modules hook it themselves:
+  `inc/status-field-guidance.php` flags a publishable `status` field, and
+  `inc/content-field-guidance.php` flags a block-markup `content` field.
+  Remove either on its own, for example
   `remove_filter( 'hm_rest_ability_route_guidance', 'HM\StatusFieldGuidance\add_guidance' )`,
-  or add your own hooked callback alongside it for anything else worth
+  or add your own hooked callback alongside them for anything else worth
   flagging.
 - `hm_rest_ability_policy` — filter to `deny` a `rest-api/read`,
   `rest-api/write`, or `rest-api/delete` call after the matched route's own

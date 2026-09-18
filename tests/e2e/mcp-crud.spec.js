@@ -230,6 +230,22 @@ test.describe( 'MCP discovery', () => {
 		expect( result.guidance ).toContain( 'already defaults to draft' );
 	} );
 
+	test( 'adds guidance about block markup for a route with post content', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const result = await rest( client, 'OPTIONS', '/wp/v2/posts' );
+
+		expect( result.guidance ).toContain( 'holds block markup' );
+	} );
+
+	test( 'leaves block markup guidance off a route without post content', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const result = await rest( client, 'OPTIONS', '/wp/v2/comments' );
+
+		expect( result.guidance || '' ).not.toContain( 'holds block markup' );
+	} );
+
 	test( 'denies an unknown route rather than dispatching it', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 
