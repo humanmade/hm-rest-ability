@@ -73,6 +73,21 @@ available:
   merged over theme.json, block binding sources, registered image sizes and
   registered post meta.
 
+  With no credentials to hand, you can issue yourself a temporary one
+  through these abilities and take it back afterwards:
+
+  1. `rest-api/write` — `POST /wp/v2/users/me/application-passwords` with
+     `{"name": "wesper"}`. The response carries a one-time `password` and a
+     `uuid`.
+  2. Run the collect with it.
+  3. `rest-api/delete` — `DELETE /wp/v2/users/me/application-passwords/<uuid>`.
+
+  Ask the user before step 1. `/wp/v2/users` is a site-config route, so the
+  abilities will flag it for confirmation anyway. Keep the password in an
+  environment variable, never in a file you might commit, and revoke it as
+  soon as the collect finishes, including when it fails. Application
+  passwords only work over HTTPS or on localhost.
+
   `summarize` prints coverage per surface and says which work the evidence
   supports — read it before relying on the manifest. wesper never modifies
   the site.
