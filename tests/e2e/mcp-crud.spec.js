@@ -235,7 +235,7 @@ test.describe( 'MCP discovery', () => {
 
 		const result = await rest( client, 'OPTIONS', '/wp/v2/posts' );
 
-		expect( result.guidance ).toContain( 'holds block markup' );
+		expect( result.guidance ).toContain( 'holds WordPress block markup' );
 	} );
 
 	test( 'leaves block markup guidance off a route without post content', async ( { request } ) => {
@@ -243,7 +243,7 @@ test.describe( 'MCP discovery', () => {
 
 		const result = await rest( client, 'OPTIONS', '/wp/v2/comments' );
 
-		expect( result.guidance || '' ).not.toContain( 'holds block markup' );
+		expect( result.guidance || '' ).not.toContain( 'holds WordPress block markup' );
 	} );
 
 	test( 'denies an unknown route rather than dispatching it', async ( { request } ) => {

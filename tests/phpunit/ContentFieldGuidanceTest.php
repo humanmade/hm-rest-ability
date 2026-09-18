@@ -127,7 +127,8 @@ class ContentFieldGuidanceTest extends TestCase {
 
 		$guidance = add_guidance( '', '/wp/v2/posts', $handlers );
 
-		$this->assertStringContainsString( 'holds block markup', $guidance );
+		$this->assertStringContainsString( 'holds WordPress block markup', $guidance );
+		$this->assertStringContainsString( '/wp/v2/block-types', $guidance );
 	}
 
 	public function test_add_guidance_appends_to_guidance_already_assembled(): void {
@@ -148,6 +149,6 @@ class ContentFieldGuidanceTest extends TestCase {
 		$guidance = add_guidance( 'This cannot be undone.', '/wp/v2/posts', $handlers );
 
 		$this->assertStringContainsString( 'This cannot be undone.', $guidance );
-		$this->assertStringContainsString( 'holds block markup', $guidance );
+		$this->assertStringContainsString( 'holds WordPress block markup', $guidance );
 	}
 }

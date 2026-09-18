@@ -62,8 +62,9 @@ plugin and the WordPress Abilities API.
   `enum` includes `publish`), not a hardcoded list of routes, so it covers
   custom post types too — see `inc/status-field-guidance.php`.
   A second module does the same for the `content` field: a route whose
-  content is stored as block markup gets a note that hand-written block
-  delimiters usually come out invalid. Detected from the schema again (a
+  content is stored as block markup gets a note saying so, and pointing at
+  `GET /wp/v2/block-types` for the blocks that site has registered — a route
+  the same abilities can already call. Detected from the schema again (a
   `content` object with a `block_version` property, which core adds only for
   post types that support the editor) — see `inc/content-field-guidance.php`.
 

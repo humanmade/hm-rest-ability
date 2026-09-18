@@ -102,6 +102,10 @@ If Node or the packages aren't there, either:
 - keep to core blocks with simple attributes (`core/paragraph`,
   `core/heading`, `core/list`, `core/image`).
 
+`GET /wp/v2/block-types` through `rest-api/read` lists the blocks the site
+has registered, with the attributes each accepts. It needs a logged-in user
+who can edit posts.
+
 Say which path you took, and that the result wasn't validated.
 
 ## Images

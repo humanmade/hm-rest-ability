@@ -19,10 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   example of using the new `hm_rest_ability_route_guidance` filter, in
   `inc/status-field-guidance.php`.
 - Add a guidance note to `OPTIONS` output for a route whose `content` field
-  holds block markup, e.g. `/wp/v2/posts` — hand-written block delimiters
-  usually produce markup the editor marks as invalid, so a client is told to
-  generate it with a validating tool or send plain HTML instead. Detected
-  from the route's schema, in `inc/content-field-guidance.php`.
+  holds block markup, e.g. `/wp/v2/posts` — it says the field holds WordPress
+  block markup and points at `GET /wp/v2/block-types` for the blocks that
+  site has registered. Detected from the route's schema, in
+  `inc/content-field-guidance.php`.
 - Ship an opt-in skill file, `skills/wordpress-block-content/SKILL.md`, for
   agent harnesses that read them. It covers route lookup, block markup and
   media upload through these abilities, and points at the `wesper` and

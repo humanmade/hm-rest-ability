@@ -33,7 +33,7 @@ function add_guidance( string $guidance, string $route, array $handlers ): strin
 		return $guidance;
 	}
 
-	$note = 'The content field holds block markup. Writing the block delimiters by hand usually produces markup the editor marks as invalid, so generate it with a tool that validates against the site\'s registered blocks, or send plain HTML, which WordPress stores as a single classic block.';
+	$note = 'The content field holds WordPress block markup. GET /wp/v2/block-types lists the blocks this site has registered, with the attributes each one accepts.';
 
 	return '' === $guidance ? $note : $guidance . ' ' . $note;
 }
