@@ -39,11 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool an honest `readOnlyHint` / `destructiveHint` / `idempotentHint`, instead
   of the previous single tool's static worst-case annotations.
 
-### Fixed
+### Removed
 
-- Serve the `.well-known` discovery documents when the request path has a
-  trailing slash, so hosts that redirect extensionless paths no longer turn
-  discovery into a 404.
+- OAuth2 discovery endpoints (`/.well-known/oauth-authorization-server`,
+  `/.well-known/oauth-protected-resource`). This is being upstreamed to
+  [WP-API/OAuth2](https://github.com/WP-API/OAuth2) instead, where it fits
+  better than as a standalone feature of this plugin.
 
 ## [0.1.0] - 2026-08-27
 

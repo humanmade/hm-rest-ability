@@ -1,21 +1,10 @@
 # HM REST Ability
 
-OAuth2 discovery endpoints and a REST API ability, for exposing WordPress to
-MCP clients (like Claude) via the official [MCP Adapter](https://github.com/WordPress/mcp-adapter)
-plugin and the WordPress Abilities API.
+A REST API ability, for exposing WordPress to MCP clients (like Claude) via
+the official [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin
+and the WordPress Abilities API.
 
 ## What it does
-
-**OAuth2 discovery** (`inc/oauth2-discovery.php`)
-
-- Serves `/.well-known/oauth-authorization-server` — RFC 8414 Authorization
-  Server Metadata — so MCP clients can auto-discover the OAuth2 endpoints
-  provided by the [WP-API/OAuth2](https://github.com/WP-API/OAuth2) plugin.
-- Serves `/.well-known/oauth-protected-resource` — RFC 9728 Protected
-  Resource Metadata — so clients can discover the authorization server from
-  a `401` on the MCP endpoint.
-- Adds a `WWW-Authenticate` header to `401` responses on MCP REST routes,
-  pointing clients at the protected resource metadata.
 
 **REST API abilities** (`inc/rest-api-abilities.php`)
 
@@ -100,10 +89,6 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 
 ## Filters
 
-- `hm_oauth2_discovery_metadata` — filter the RFC 8414 authorization server
-  metadata document.
-- `hm_oauth2_protected_resource_metadata` — filter the RFC 9728 protected
-  resource metadata document.
 - `hm_rest_ability_max_response_bytes` — filter the maximum size, in bytes, of
   the response data returned for one `rest-api/read`, `rest-api/write`, or
   `rest-api/delete` call. Defaults to `50000`; set it to `0` or less to
@@ -111,9 +96,6 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
 - `hm_rest_ability_max_upload_bytes` — filter the maximum size, in bytes, of a
   decoded `media/upload` file. Defaults to `wp_max_upload_size()`, the site's
   own limit; set it to `0` or less to remove the limit.
-- `hm_rest_ability_login_wall_exemptions` — filter the login-wall callbacks
-  removed from `.well-known/` requests (defaults to Human Made's Require
-  Login plugin; no-ops elsewhere).
 - `hm_rest_ability_route_guidance` — filter the `guidance` text an `OPTIONS`
   response carries for a route, after the built-in risk-tier guidance is
   assembled (`$guidance, $route, $handlers`). Add to it, replace it, or
