@@ -11,6 +11,8 @@ use WP_REST_Response;
 use WP_REST_Server;
 
 use function HM\RestApiAbilities\build_request;
+use function HM\RestApiAbilities\cap_route_index;
+use function HM\RestApiAbilities\route_namespace;
 use function HM\RestApiAbilities\cap_response_data;
 use function HM\RestApiAbilities\condense_routes;
 use function HM\RestApiAbilities\check_permission;
@@ -24,6 +26,7 @@ class RestApiAbilitiesTest extends TestCase {
 	protected function set_up(): void {
 		parent::set_up();
 		$this->load_plugin_file( 'inc/route-risk.php' );
+		$this->load_plugin_file( 'inc/route-suggestions.php' );
 		$this->load_plugin_file( 'inc/rest-api-abilities.php' );
 	}
 
@@ -176,6 +179,84 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'rest_no_route', $result->get_error_code() );
+	}
+
+	public function test_check_permission_names_close_matches_for_an_unknown_route(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2'                                  => [ [ 'methods' => [ 'GET' => true ] ] ],
+			'/wp/v2/posts'                            => [ [ 'methods' => [ 'GET' => true ] ] ],
+			'/wp/v2/block-patterns/patterns'          => [ [ 'methods' => [ 'GET' => true ] ] ],
+			'/wp/v2/block-patterns/categories'        => [ [ 'methods' => [ 'GET' => true ] ] ],
+			'/wp/v2/global-styles/(?P<id>[\/\d+]+)' => [ [ 'methods' => [ 'GET' => true ] ] ],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [ 'method' => 'GET', 'route' => '/wp/v2/patterns' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'rest_no_route', $result->get_error_code() );
+		$this->assertSame(
+			[ '/wp/v2/block-patterns/patterns', '/wp/v2/block-patterns/categories' ],
+			$result->get_error_data()['suggestions']
+		);
+		$this->assertStringContainsString( 'Did you mean: /wp/v2/block-patterns/patterns, /wp/v2/block-patterns/categories?', $result->get_error_message() );
+		$this->assertStringContainsString( 'GET /wp/v2', $result->get_error_message() );
+
+		$result = check_permission( [ 'method' => 'GET', 'route' => '/wp/v2/global-styles' ] );
+
+		$this->assertSame( [ '/wp/v2/global-styles/{id}' ], $result->get_error_data()['suggestions'] );
+		$this->assertStringContainsString( 'Replace each {name} placeholder', $result->get_error_message() );
+	}
+
+	public function test_check_permission_reports_a_method_the_route_does_not_accept(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/block-patterns/patterns' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => '__return_true',
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [ 'method' => 'POST', 'route' => '/wp/v2/block-patterns/patterns' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'rest_no_method', $result->get_error_code() );
+		$this->assertSame( 'Route /wp/v2/block-patterns/patterns does not accept POST. It accepts GET.', $result->get_error_message() );
+		$this->assertSame( 405, $result->get_error_data()['status'] );
+	}
+
+	public function test_check_permission_finds_the_method_on_a_later_matching_route(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/things' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => '__return_true',
+				],
+			],
+			'/wp/v2/(?P<any>[a-z]+)' => [
+				[
+					'methods'             => [ 'POST' => true ],
+					'permission_callback' => '__return_true',
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$this->assertTrue( check_permission( [ 'method' => 'POST', 'route' => '/wp/v2/things' ] ) );
 	}
 
 	public function test_check_permission_runs_the_route_permission_callback(): void {
@@ -423,6 +504,94 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertNotEmpty( $result['truncated']['hint'] );
 	}
 
+	/**
+	 * Builds a condensed index the size of a site running many plugins:
+	 * a few core namespaces plus one with hundreds of routes.
+	 */
+	private function large_index( int $plugin_routes = 800 ): array {
+		$routes = [
+			'/'                                       => [ 'GET' ],
+			'/wp/v2'                                  => [ 'GET' ],
+			'/wp/v2/posts'                            => [ 'GET', 'POST' ],
+			'/wp/v2/block-patterns/patterns'          => [ 'GET' ],
+			'/wp/v2/global-styles/(?P<id>[\/\d+]+)' => [ 'GET', 'POST', 'PUT', 'PATCH' ],
+			'/jetpack/v4'                             => [ 'GET' ],
+			'/jetpack/v4/stats-app'                   => [ 'GET' ],
+			'/jetpack/v4/stats-app/site'              => [ 'GET' ],
+		];
+
+		for ( $i = 0; $i < $plugin_routes; $i++ ) {
+			$routes[ "/jetpack/v4/module/$i/(?P<id>[\\d]+)" ] = [ 'GET', 'POST', 'DELETE' ];
+		}
+
+		return [
+			'name'       => 'Big site',
+			'namespaces' => [ 'wp/v2', 'jetpack/v4', 'jetpack/v4/stats-app' ],
+			'routes'     => array_map( static fn ( array $methods ) => [ 'methods' => $methods ], $routes ),
+		];
+	}
+
+	public function test_execute_summarises_the_index_by_namespace_when_the_route_list_is_too_large(): void {
+		$this->set_max_response_bytes( 5000 );
+
+		$server = new WP_REST_Server();
+		$server->set_response_data( $this->large_index() );
+
+		Functions\when( 'rest_do_request' )->justReturn( new WP_REST_Response( null, 200 ) );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'GET', 'route' => '/' ] );
+
+		$this->assertArrayNotHasKey( 'routes', $result['data'] );
+		$this->assertSame( [ 'wp/v2', 'jetpack/v4', 'jetpack/v4/stats-app' ], $result['data']['namespaces'] );
+		$this->assertSame(
+			[
+				'wp/v2'                => 4,
+				'jetpack/v4'           => 801,
+				'jetpack/v4/stats-app' => 2,
+			],
+			$result['data']['route_counts']
+		);
+		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
+		$this->assertStringContainsString( 'GET /wp/v2', $result['truncated']['hint'] );
+		$this->assertLessThanOrEqual( 5000, strlen( json_encode( $result['data'] ) ) );
+	}
+
+	public function test_execute_returns_the_whole_index_when_it_fits(): void {
+		$this->set_max_response_bytes( 500000 );
+
+		$index  = $this->large_index();
+		$server = new WP_REST_Server();
+		$server->set_response_data( $index );
+
+		Functions\when( 'rest_do_request' )->justReturn( new WP_REST_Response( null, 200 ) );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'GET', 'route' => '/' ] );
+
+		$this->assertArrayNotHasKey( 'truncated', $result );
+		$this->assertCount( count( $index['routes'] ), $result['data']['routes'] );
+		$this->assertSame( [ 'GET' ], $result['data']['routes']['/wp/v2/block-patterns/patterns'] );
+	}
+
+	public function test_cap_route_index_leaves_a_small_index_alone(): void {
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
+
+		$index = $this->large_index( 3 );
+
+		$this->assertSame( [ 'data' => $index ], cap_route_index( $index ) );
+	}
+
+	public function test_route_namespace_prefers_the_longest_namespace(): void {
+		$namespaces = [ 'wp/v2', 'jetpack/v4', 'jetpack/v4/stats-app' ];
+
+		$this->assertSame( 'jetpack/v4/stats-app', route_namespace( '/jetpack/v4/stats-app/site', $namespaces ) );
+		$this->assertSame( 'jetpack/v4', route_namespace( '/jetpack/v4/stats-app-thing', $namespaces ) );
+		$this->assertSame( 'wp/v2', route_namespace( '/wp/v2', $namespaces ) );
+		$this->assertNull( route_namespace( '/', $namespaces ) );
+		$this->assertNull( route_namespace( '/oauth2/authorize', $namespaces ) );
+	}
+
 	public function test_condense_routes_keeps_paths_and_methods(): void {
 		$data = [
 			'name'   => 'Test site',
@@ -532,6 +701,26 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$this->assertSame( 404, $result['status'] );
 		$this->assertNotEmpty( $result['error'] );
+		$this->assertSame( [], $result['suggestions'] );
+	}
+
+	public function test_execute_names_close_matches_for_an_unknown_route_for_options(): void {
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2'                                                => [ [ 'methods' => [ 'GET' => true ] ] ],
+			'/wp/v2/global-styles/themes/(?P<stylesheet>[^\/:<>\*\?"\|]+(?:\/[^\/:<>\*\?"\|]+)?)' => [ [ 'methods' => [ 'GET' => true ] ] ],
+			'/wp/v2/global-styles/(?P<id>[\/\d+]+)'               => [ [ 'methods' => [ 'GET' => true ] ] ],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'OPTIONS', 'route' => '/wp/v2/global-styles' ] );
+
+		$this->assertSame( 404, $result['status'] );
+		$this->assertSame(
+			[ '/wp/v2/global-styles/{id}', '/wp/v2/global-styles/themes/{stylesheet}' ],
+			$result['suggestions']
+		);
+		$this->assertStringContainsString( 'Did you mean: /wp/v2/global-styles/{id}, /wp/v2/global-styles/themes/{stylesheet}?', $result['error'] );
 	}
 
 	public function test_filter_mcp_server_config_namespaces_by_site(): void {

@@ -15,6 +15,8 @@ use WP_REST_Request;
 
 use function HM\RouteRisk\classify_route;
 use function HM\RouteRisk\guidance_for_risk;
+use function HM\RouteSuggestions\no_route_message;
+use function HM\RouteSuggestions\suggest_routes;
 
 // Exit if accessed directly.
 if ( ! defined( 'ABSPATH' ) ) {
@@ -61,7 +63,7 @@ function tool_definitions(): array {
 			'label'       => 'Read REST API',
 			'methods'     => [ 'GET', 'OPTIONS' ],
 			'description' => sprintf(
-				'Read any WordPress REST API endpoint internally, or inspect a route\'s parameters with OPTIONS. Call GET / for a list of every route and the methods it accepts, then OPTIONS on one route for its parameters. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
+				'Read any WordPress REST API endpoint internally, or inspect a route\'s parameters with OPTIONS. Call GET / for a list of every route and the methods it accepts, or GET /wp/v2 for one namespace, then OPTIONS on one route for its parameters. Route paths are exact: an unknown route returns an error naming the closest registered routes. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
 				$max_bytes
 			),
 			'annotations' => [
@@ -187,6 +189,7 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 	$server    = rest_get_server();
 	$request   = build_request( $method, $route, $params );
 	$endpoints = $server->get_routes();
+	$accepted  = [];
 
 	foreach ( $endpoints as $pattern => $handlers ) {
 		if ( ! preg_match( '#^' . $pattern . '[/]*$#i', $route, $matches ) ) {
@@ -203,6 +206,7 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 		$request->set_url_params( $url_params );
 		foreach ( $handlers as $handler ) {
 			if ( empty( $handler['methods'][ $method ] ) ) {
+				$accepted = array_merge( $accepted, array_keys( $handler['methods'] ?? [] ) );
 				continue;
 			}
 			$permission_callback = $handler['permission_callback'] ?? null;
@@ -217,8 +221,26 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 		}
 	}
 
+	// The route exists but none of its handlers take this method.
+	if ( $accepted ) {
+		return new WP_Error(
+			'rest_no_method',
+			sprintf( 'Route %s does not accept %s. It accepts %s.', $route, $method, implode( ', ', array_unique( $accepted ) ) ),
+			[ 'status' => 405 ]
+		);
+	}
+
 	// No matching route found, so there's no permission_callback to defer to.
-	return new WP_Error( 'rest_no_route', 'No route matches the given path.', [ 'status' => 404 ] );
+	$suggestions = suggest_routes( $route, array_keys( $endpoints ) );
+
+	return new WP_Error(
+		'rest_no_route',
+		no_route_message( $route, $suggestions ),
+		[
+			'status'      => 404,
+			'suggestions' => $suggestions,
+		]
+	);
 }
 
 /**
@@ -281,8 +303,8 @@ function execute( array $input ): array {
 		$response = rest_filter_response_fields( $response, rest_get_server(), $request );
 	}
 
-	$data   = rest_get_server()->response_to_data( $response, false );
-	$capped = cap_response_data( condense_routes( $data ) );
+	$data   = condense_routes( rest_get_server()->response_to_data( $response, false ) );
+	$capped = is_route_index( $data ) ? cap_route_index( $data ) : cap_response_data( $data );
 
 	$result = [
 		'status'  => $response->get_status(),
@@ -333,9 +355,12 @@ function describe_route( string $route ): array {
 		return $result;
 	}
 
+	$suggestions = suggest_routes( $route, array_keys( $server->get_routes() ) );
+
 	return [
-		'status' => 404,
-		'error'  => sprintf( 'No route matches %s.', $route ),
+		'status'      => 404,
+		'error'       => no_route_message( $route, $suggestions ),
+		'suggestions' => $suggestions,
 	];
 }
 
@@ -421,6 +446,90 @@ function condense_routes( $data ) {
 	$data['routes'] = $condensed;
 
 	return $data;
+}
+
+/**
+ * Checks whether response data is the REST API index, `GET /`.
+ *
+ * @param mixed $data Response data.
+ * @return bool
+ */
+function is_route_index( $data ): bool {
+	return is_array( $data )
+		&& is_array( $data['routes'] ?? null )
+		&& is_array( $data['namespaces'] ?? null );
+}
+
+/**
+ * Trims the REST API index down to the maximum response size.
+ *
+ * The condensed route list is the index's one large field, so the general
+ * trimming in cap_response_data() would drop it whole and leave a client
+ * nothing to discover routes from. Instead the list is replaced by a count of
+ * routes per namespace, and the client is pointed at the namespace indexes,
+ * which each fit on their own.
+ *
+ * @param array $data Condensed index data.
+ * @return array Keyed by `data`, plus `truncated` when the list was replaced.
+ */
+function cap_route_index( array $data ): array {
+	$max_bytes = max_response_bytes();
+
+	if ( $max_bytes <= 0 || encoded_size( $data ) <= $max_bytes ) {
+		return [ 'data' => $data ];
+	}
+
+	$counts = [];
+
+	foreach ( array_keys( $data['routes'] ) as $path ) {
+		$route_namespace = route_namespace( (string) $path, $data['namespaces'] );
+
+		if ( null === $route_namespace ) {
+			continue;
+		}
+
+		$counts[ $route_namespace ] = ( $counts[ $route_namespace ] ?? 0 ) + 1;
+	}
+
+	unset( $data['routes'] );
+	$data['route_counts'] = $counts;
+
+	$capped              = cap_response_data( $data );
+	$capped['truncated'] = [
+		'reason'    => 'response_too_large',
+		'max_bytes' => $max_bytes,
+		'hint'      => 'The route list is too long to return at once, so route_counts gives the number of routes in each namespace instead. Call GET /<namespace>, for example GET /wp/v2, to list the routes in one namespace.',
+	] + ( $capped['truncated'] ?? [] );
+
+	return $capped;
+}
+
+/**
+ * Returns the namespace a route path belongs to.
+ *
+ * Namespaces can nest, as `jetpack/v4` and `jetpack/v4/stats-app` do, so
+ * the longest one the path sits under wins.
+ *
+ * @param string   $path       Route path.
+ * @param string[] $namespaces Registered namespaces, from the index.
+ * @return string|null The namespace, or null for a path outside all of them.
+ */
+function route_namespace( string $path, array $namespaces ): ?string {
+	$longest = null;
+
+	foreach ( $namespaces as $route_namespace ) {
+		$prefix = '/' . trim( (string) $route_namespace, '/' );
+
+		if ( $path !== $prefix && 0 !== strpos( $path, $prefix . '/' ) ) {
+			continue;
+		}
+
+		if ( null === $longest || strlen( $prefix ) > strlen( $longest ) ) {
+			$longest = $prefix;
+		}
+	}
+
+	return null === $longest ? null : ltrim( $longest, '/' );
 }
 
 /**

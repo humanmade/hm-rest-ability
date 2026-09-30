@@ -31,5 +31,6 @@ require_once HM_REST_ABILITY_PATH . 'inc/route-risk.php';
 require_once HM_REST_ABILITY_PATH . 'inc/status-field-guidance.php';
 require_once HM_REST_ABILITY_PATH . 'inc/content-field-guidance.php';
 require_once HM_REST_ABILITY_PATH . 'inc/design-route-guidance.php';
+require_once HM_REST_ABILITY_PATH . 'inc/route-suggestions.php';
 require_once HM_REST_ABILITY_PATH . 'inc/rest-api-abilities.php';
 require_once HM_REST_ABILITY_PATH . 'inc/media-abilities.php';

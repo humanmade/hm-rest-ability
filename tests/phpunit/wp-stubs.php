@@ -9,10 +9,16 @@ if ( ! class_exists( 'WP_Error' ) ) {
 
 		private string $code;
 		private string $message;
+		private $data;
 
-		public function __construct( string $code = '', string $message = '' ) {
+		public function __construct( string $code = '', string $message = '', $data = null ) {
 			$this->code    = $code;
 			$this->message = $message;
+			$this->data    = $data;
+		}
+
+		public function get_error_data() {
+			return $this->data;
 		}
 
 		public function get_error_code(): string {
