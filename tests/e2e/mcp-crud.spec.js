@@ -257,4 +257,101 @@ test.describe( 'MCP discovery', () => {
 		expect( result.isError ).toBe( true );
 		expect( result.text ).toContain( 'No route matches' );
 	} );
+
+	test( 'names the pattern routes when a client guesses /wp/v2/patterns', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const result = await client.callTool( 'rest-api-read', { method: 'GET', route: '/wp/v2/patterns' } );
+
+		expect( result.isError ).toBe( true );
+		expect( result.text ).toContain( 'Did you mean: /wp/v2/block-patterns/patterns' );
+		expect( result.text ).toContain( '/wp/v2/block-patterns/categories' );
+		expect( result.text ).toContain( 'GET /wp/v2' );
+	} );
+
+	test( 'names the global styles routes when a client guesses /wp/v2/global-styles', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const result = await client.callTool( 'rest-api-read', { method: 'OPTIONS', route: '/wp/v2/global-styles' } );
+
+		expect( result.isError ).toBe( true );
+		expect( result.text ).toContain( 'Did you mean: /wp/v2/global-styles/{id}, /wp/v2/global-styles/themes/{stylesheet}' );
+		expect( result.text ).toContain( 'Replace each {name} placeholder' );
+	} );
+
+	test( 'says which methods a route accepts instead of calling it unknown', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const result = await client.callTool( 'rest-api-write', { method: 'POST', route: '/wp/v2/block-patterns/patterns' } );
+
+		expect( result.isError ).toBe( true );
+		expect( result.text ).toBe( 'Route /wp/v2/block-patterns/patterns does not accept POST. It accepts GET.' );
+	} );
+
+	test( 'reads block patterns and global styles through the real routes', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const patterns = await rest( client, 'GET', '/wp/v2/block-patterns/patterns', { _fields: 'name,title' } );
+
+		expect( patterns.status ).toBe( 200 );
+		expect( patterns.data.length ).toBeGreaterThan( 0 );
+		expect( patterns.data[ 0 ] ).toHaveProperty( 'name' );
+
+		const categories = await rest( client, 'GET', '/wp/v2/block-patterns/categories' );
+
+		expect( categories.status ).toBe( 200 );
+
+		const themes = await rest( client, 'GET', '/wp/v2/themes', { status: 'active' } );
+		const theme = themes.data[ 0 ];
+		const link = theme._links[ 'wp:user-global-styles' ][ 0 ].href;
+		const id = link.split( '/' ).pop();
+
+		expect( id ).toMatch( /^\d+$/ );
+
+		const userStyles = await rest( client, 'GET', `/wp/v2/global-styles/${ id }`, { _fields: 'id,settings,styles' } );
+
+		expect( userStyles.status ).toBe( 200 );
+		expect( String( userStyles.data.id ) ).toBe( id );
+
+		const themeStyles = await rest( client, 'GET', `/wp/v2/global-styles/themes/${ theme.stylesheet }` );
+
+		expect( themeStyles.status ).toBe( 200 );
+		expect( themeStyles.data ).toHaveProperty( 'settings' );
+	} );
+
+	test( 'explains where the global styles id and stylesheet come from', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const byId = await rest( client, 'OPTIONS', '/wp/v2/global-styles/1' );
+
+		expect( byId.guidance ).toContain( 'wp:user-global-styles' );
+
+		const byTheme = await rest( client, 'OPTIONS', '/wp/v2/global-styles/themes/twentytwentyfive' );
+
+		expect( byTheme.guidance ).toContain( 'theme directory slug' );
+
+		const patterns = await rest( client, 'OPTIONS', '/wp/v2/block-patterns/patterns' );
+
+		expect( patterns.guidance ).toContain( 'GET /wp/v2/blocks' );
+	} );
+
+	test( 'summarises the index by namespace on a site with too many routes', async ( { request } ) => {
+		// The test mu-plugin registers 1,500 extra routes when it sees this header.
+		const client = await McpClient.connect( request, 'admin', { 'X-HM-Bulk-Routes': '1' } );
+
+		const index = await rest( client, 'GET', '/' );
+
+		expect( index.truncated.reason ).toBe( 'response_too_large' );
+		expect( index.truncated.hint ).toContain( 'GET /wp/v2' );
+		expect( index.data.routes ).toBeUndefined();
+		expect( index.data.route_counts[ 'bulk-test/v1' ] ).toBe( 1501 );
+		expect( index.data.route_counts[ 'wp/v2' ] ).toBeGreaterThan( 50 );
+		expect( index.data.namespaces ).toContain( 'wp/v2' );
+
+		const core = await rest( client, 'GET', '/wp/v2' );
+
+		expect( core.truncated ).toBeUndefined();
+		expect( core.data.routes[ '/wp/v2/block-patterns/patterns' ] ).toEqual( [ 'GET' ] );
+		expect( Object.keys( core.data.routes ).some( ( route ) => route.startsWith( '/wp/v2/global-styles/' ) ) ).toBe( true );
+	} );
 } );
