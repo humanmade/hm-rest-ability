@@ -21,9 +21,11 @@ allow.
 Don't guess a route. Two steps, both cheap:
 
 1. `rest-api/read` with route `/` returns every route path and the methods it
-   accepts — a few kilobytes, not the full 1MB index.
+   accepts — a few kilobytes, not the full 1MB index. On a site with many plugins the result may instead give `route_counts` per namespace; then call `/wp/v2` (or another namespace) for its routes.
 2. `rest-api/read` with method `OPTIONS` and that route returns its
    parameters.
+
+Route paths are exact. `/wp/v2/patterns` and a bare `/wp/v2/global-styles` don't exist; the real routes are `/wp/v2/block-patterns/patterns`, `/wp/v2/block-patterns/categories`, `/wp/v2/global-styles/{id}` and `/wp/v2/global-styles/themes/{stylesheet}`. An unknown route returns an error that names the closest registered routes, so read it rather than concluding the site lacks the feature. The `guidance` on an `OPTIONS` result says where a route's `{id}` or `{stylesheet}` comes from.
 
 Read the `guidance` key in an `OPTIONS` result before you write. It flags
 routes that change site settings or access, routes that can't be undone, and

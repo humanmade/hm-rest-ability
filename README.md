@@ -35,6 +35,8 @@ and the WordPress Abilities API.
   of the ~1MB full index. `OPTIONS /wp/v2/posts` then returns that one route's
   parameters. Core only answers `OPTIONS` when serving a real HTTP request, so
   the ability builds the same description from the route table itself.
+- Keeps that route list reachable on a site with many plugins. When the condensed index still exceeds the cap, the response swaps the list for a count of routes per namespace and says to call `GET /<namespace>` (for example `GET /wp/v2`) for one namespace at a time, which always fits, instead of dropping the list altogether.
+- Names close matches for an unknown route. A route that doesn't exist, such as `/wp/v2/patterns` or a bare `/wp/v2/global-styles`, gets a `rest_no_route` error that lists the nearest registered routes (`/wp/v2/block-patterns/patterns`, `/wp/v2/global-styles/{id}`, and so on), with named URL parameters shown as `{name}` placeholders. A route that exists but doesn't take the method gets a `rest_no_method` error naming the methods it does accept. See `inc/route-suggestions.php`.
 - Adds confirmation guidance where it matters. `rest-api/write` and
   `rest-api/delete` ask a client to confirm with the user before calling. An
   `OPTIONS` response also carries a `guidance` key for a route that changes
@@ -56,6 +58,7 @@ and the WordPress Abilities API.
   the same abilities can already call. Detected from the schema again (a
   `content` object with a `block_version` property, which core adds only for
   post types that support the editor) — see `inc/content-field-guidance.php`.
+  A third module covers core's design routes, whose paths don't say where their parameters come from: `/wp/v2/global-styles/{id}` explains that the id is the user global styles post linked from the active theme (`wp:user-global-styles`), `/wp/v2/global-styles/themes/{stylesheet}` explains the stylesheet slug, and `/wp/v2/block-patterns/patterns` and `/wp/v2/blocks` each point at the other for the kind of pattern they don't hold — see `inc/design-route-guidance.php`.
 
 **Media upload ability** (`inc/media-abilities.php`)
 
