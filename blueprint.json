@@ -43,6 +43,11 @@
 			"data": "<?php\n/**\n * Test-only: makes application passwords usable in Playground.\n *\n * WordPress only offers them over SSL or on localhost, and Playground serves\n * over http://127.0.0.1.\n */\n\ndefine( 'HM_TEST_APP_PASSWORDS', true );\n\nadd_filter( 'wp_is_application_passwords_available', '__return_true' );\n"
 		},
 		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/test-bulk-routes.php",
+			"data": "<?php\n/**\n * Test-only: registers 1,500 extra REST routes when a request carries the\n * X-HM-Bulk-Routes header, to stand in for a site running many plugins.\n */\n\nadd_action( 'rest_api_init', function () {\n\tif ( empty( $_SERVER['HTTP_X_HM_BULK_ROUTES'] ) ) {\n\t\treturn;\n\t}\n\n\tfor ( $i = 0; $i < 1500; $i++ ) {\n\t\tregister_rest_route( 'bulk-test/v1', \"/module-$i/(?P<id>[\\\\d]+)\", [\n\t\t\t'methods'             => 'GET',\n\t\t\t'callback'            => '__return_empty_array',\n\t\t\t'permission_callback' => '__return_true',\n\t\t] );\n\t}\n} );\n"
+		},
+		{
 			"step": "activatePlugin",
 			"pluginPath": "hm-rest-ability/hm-rest-ability.php",
 			"pluginName": "HM REST Ability"

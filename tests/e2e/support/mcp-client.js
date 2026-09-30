@@ -13,10 +13,11 @@ class McpClient {
 	 * @param {import('@playwright/test').APIRequestContext} request Playwright request context.
 	 * @param {string}                                       route   MCP endpoint path.
 	 */
-	constructor( request, route, role = 'admin' ) {
+	constructor( request, route, role = 'admin', extraHeaders = {} ) {
 		this.request = request;
 		this.route = route;
 		this.role = role;
+		this.extraHeaders = extraHeaders;
 		this.sessionId = null;
 		this.nextId = 1;
 	}
@@ -24,12 +25,13 @@ class McpClient {
 	/**
 	 * Finds the MCP endpoint and completes the handshake.
 	 *
-	 * @param {import('@playwright/test').APIRequestContext} request Playwright request context.
-	 * @param {string}                                       role    Account to connect as.
+	 * @param {import('@playwright/test').APIRequestContext} request      Playwright request context.
+	 * @param {string}                                       role         Account to connect as.
+	 * @param {Object}                                       extraHeaders Headers to send with every call.
 	 * @return {Promise<McpClient>} A client ready to take calls.
 	 */
-	static async connect( request, role = 'admin' ) {
-		const client = new McpClient( request, await McpClient.discoverRoute( request ), role );
+	static async connect( request, role = 'admin', extraHeaders = {} ) {
+		const client = new McpClient( request, await McpClient.discoverRoute( request ), role, extraHeaders );
 		await client.initialize();
 
 		return client;
@@ -73,6 +75,7 @@ class McpClient {
 	async send( method, params = {}, { auth = true } = {} ) {
 		const headers = {
 			...( auth ? authHeaders( this.role ) : anonymousHeaders() ),
+			...this.extraHeaders,
 			'Content-Type': 'application/json',
 			// The streamable HTTP transport may answer with either.
 			Accept: 'application/json, text/event-stream',
