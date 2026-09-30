@@ -25,7 +25,7 @@ Don't guess a route. Two steps, both cheap:
 2. `rest-api/read` with method `OPTIONS` and that route returns its
    parameters.
 
-Route paths are exact. `/wp/v2/patterns` and a bare `/wp/v2/global-styles` don't exist; the real routes are `/wp/v2/block-patterns/patterns`, `/wp/v2/block-patterns/categories`, `/wp/v2/global-styles/{id}` and `/wp/v2/global-styles/themes/{stylesheet}`. An unknown route returns an error that names the closest registered routes, so read it rather than concluding the site lacks the feature. The `guidance` on an `OPTIONS` result says where a route's `{id}` or `{stylesheet}` comes from.
+A route listed with a regex group, such as `/wp/v2/posts/(?P<id>[\d]+)`, takes a value in its place: `/wp/v2/posts/123`. Beyond that, a path has to match what the site registers. `/wp/v2/patterns` and a bare `/wp/v2/global-styles` don't exist; the real routes are `/wp/v2/block-patterns/patterns`, `/wp/v2/block-patterns/categories`, `/wp/v2/global-styles/{id}` and `/wp/v2/global-styles/themes/{stylesheet}`. An unknown route returns an error that names the closest registered routes, so read it rather than concluding the site lacks the feature. The `guidance` on an `OPTIONS` result says where a route's `{id}` or `{stylesheet}` comes from.
 
 Read the `guidance` key in an `OPTIONS` result before you write. It flags
 routes that change site settings or access, routes that can't be undone, and
