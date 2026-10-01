@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-01
+
 ### Added
 
 - Name close matches for an unknown route. Asking for `/wp/v2/patterns` or a bare `/wp/v2/global-styles` now returns a `rest_no_route` error listing the nearest registered routes, such as `/wp/v2/block-patterns/patterns` and `/wp/v2/global-styles/{id}`, with URL parameters shown as `{name}` placeholders, plus a pointer to `GET /` and `GET /<namespace>`. The `OPTIONS` result for an unknown route carries the same list under `suggestions`. In `inc/route-suggestions.php`.
@@ -98,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rest-api/call` ability for dispatching internal WordPress REST API
   requests from MCP clients.
 
-[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.2.0...v0.3.0
