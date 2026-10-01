@@ -85,6 +85,10 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 			return $this->query_params;
 		}
 
+		public function get_param( string $key ) {
+			return $this->query_params[ $key ] ?? $this->body_params[ $key ] ?? null;
+		}
+
 		public function set_body_params( array $params ): void {
 			$this->body_params = $params;
 		}
@@ -124,9 +128,24 @@ if ( ! class_exists( 'WP_REST_Response' ) ) {
 
 		private int $status;
 		private array $headers = [];
+		private $data;
+		private array $links = [];
 
 		public function __construct( $data = null, int $status = 200 ) {
+			$this->data   = $data;
 			$this->status = $status;
+		}
+
+		public function get_data() {
+			return $this->data;
+		}
+
+		public function add_link( string $rel, string $href, array $attributes = [] ): void {
+			$this->links[ $rel ][] = [ 'href' => $href ] + $attributes;
+		}
+
+		public function get_links(): array {
+			return $this->links;
 		}
 
 		public function get_status(): int {

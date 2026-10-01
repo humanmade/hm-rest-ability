@@ -63,7 +63,7 @@ function tool_definitions(): array {
 			'label'       => 'Read REST API',
 			'methods'     => [ 'GET', 'OPTIONS' ],
 			'description' => sprintf(
-				'Read any WordPress REST API endpoint internally, or inspect a route\'s parameters with OPTIONS. Call GET / for a list of every route and the methods it accepts, or GET /wp/v2 for one namespace, then OPTIONS on one route for its parameters. A route listed with a regex group, such as /wp/v2/posts/(?P<id>[\\d]+), is called with a value in its place: /wp/v2/posts/123. A route that does not exist returns an error naming the closest registered routes. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
+				'Read any WordPress REST API endpoint internally, or inspect a route\'s parameters with OPTIONS. Call GET / for a list of every route and the methods it accepts, or GET /wp/v2 for one namespace, then OPTIONS on one route for its parameters. A route listed with a regex group, such as /wp/v2/posts/(?P<id>[\\d]+), is called with a value in its place: /wp/v2/posts/123. A route that does not exist returns an error naming the closest registered routes. To find the post, page or file at a URL, GET /hm-rest-ability/v1/url-lookup with the URL as the url param. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields, per_page, or a more specific route.',
 				$max_bytes
 			),
 			'annotations' => [

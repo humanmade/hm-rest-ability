@@ -34,6 +34,10 @@ fields that need care.
 Responses are capped (50KB by default) and say when they were trimmed. Pass
 `_fields` to ask for less up front.
 
+## Find a post or page by its URL
+
+When the user gives a URL, look it up instead of searching for it. `rest-api/read` with `GET /hm-rest-ability/v1/url-lookup` and the URL as the `url` param returns the item's `id` and `type`, and its `_links.self` is the route to read or update it. A path such as `/about-us/` works too, and so does the same URL on another host, e.g. a production address against a staging site. A `404` means nothing the user can read lives there.
+
 ## Content is block markup
 
 The `content` field on a post or page holds Gutenberg block markup: HTML
