@@ -6,7 +6,9 @@
 		"playground:start": "npx @wp-playground/cli server --blueprint=blueprint.json --auto-mount",
 		"test:e2e": "playwright test",
 		"test:e2e:debug": "playwright test --debug",
-		"test:e2e:watch": "playwright test --ui"
+		"test:e2e:watch": "playwright test --ui",
+		"test:evals": "node tests/evals/run.mjs",
+		"test:evals:check": "node tests/evals/run.mjs --dry-run"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.63.0",
