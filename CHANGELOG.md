@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Name close matches for an unknown route. Asking for `/wp/v2/patterns` or a bare `/wp/v2/global-styles` now returns a `rest_no_route` error listing the nearest registered routes, such as `/wp/v2/block-patterns/patterns` and `/wp/v2/global-styles/{id}`, with URL parameters shown as `{name}` placeholders, plus a pointer to `GET /` and `GET /<namespace>`. The `OPTIONS` result for an unknown route carries the same list under `suggestions`. In `inc/route-suggestions.php`.
 - Return a `rest_no_method` error, naming the methods a route does accept, when the route exists but doesn't take the one requested. Before, that case was reported as no route at all.
 - Add guidance to `OPTIONS` output for core's design routes: where the global styles `{id}` and theme `{stylesheet}` come from, and which of `/wp/v2/block-patterns/patterns` and `/wp/v2/blocks` holds registered versus synced patterns. In `inc/design-route-guidance.php`.
+- Add `GET /hm-rest-ability/v1/url-lookup`, which returns the `id` and `type` of the post, page or file at a URL, with a `self` link to its REST resource. It accepts a full URL, a path, or the same URL on another host. Reported in QA, where searching for a full URL returned no results.
 
 ### Changed
 

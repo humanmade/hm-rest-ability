@@ -59,6 +59,7 @@ and the WordPress Abilities API.
   `content` object with a `block_version` property, which core adds only for
   post types that support the editor) — see `inc/content-field-guidance.php`.
   A third module covers core's design routes, whose paths don't say where their parameters come from: `/wp/v2/global-styles/{id}` explains that the id is the user global styles post linked from the active theme (`wp:user-global-styles`), `/wp/v2/global-styles/themes/{stylesheet}` explains the stylesheet slug, and `/wp/v2/block-patterns/patterns` and `/wp/v2/blocks` each point at the other for the kind of pattern they don't hold — see `inc/design-route-guidance.php`.
+- Adds `GET /hm-rest-ability/v1/url-lookup?url=…`, which finds the post, page or file at a URL and returns its `id` and post `type`, with a `self` link to its own REST resource. It takes a full URL, a path, or the same URL on another host, such as a production address on a staging site. Any post type is covered, custom ones included, because the lookup uses the site's own rewrite rules through `url_to_postid()`. It only finds items the current user can read, and answers `404` otherwise — see `inc/url-lookup.php`. The `rest-api/read` tool description points at it.
 
 **Media upload ability** (`inc/media-abilities.php`)
 

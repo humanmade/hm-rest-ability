@@ -15,7 +15,8 @@
 		{
 			"step": "setSiteOptions",
 			"options": {
-				"blogname": "HM REST Ability"
+				"blogname": "HM REST Ability",
+				"permalink_structure": "/%postname%/"
 			}
 		},
 		{
@@ -48,6 +49,11 @@
 			"data": "<?php\n/**\n * Test-only: registers 1,500 extra REST routes when a request carries the\n * X-HM-Bulk-Routes header, to stand in for a site running many plugins.\n */\n\nadd_action( 'rest_api_init', function () {\n\tif ( empty( $_SERVER['HTTP_X_HM_BULK_ROUTES'] ) ) {\n\t\treturn;\n\t}\n\n\tfor ( $i = 0; $i < 1500; $i++ ) {\n\t\tregister_rest_route( 'bulk-test/v1', \"/module-$i/(?P<id>[\\\\d]+)\", [\n\t\t\t'methods'             => 'GET',\n\t\t\t'callback'            => '__return_empty_array',\n\t\t\t'permission_callback' => '__return_true',\n\t\t] );\n\t}\n} );\n"
 		},
 		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/test-case-study-post-type.php",
+			"data": "<?php\n/**\n * Test-only: a custom post type on its own REST namespace, so the e2e suite\n * can prove URL lookup covers more than core's post and page routes.\n */\n\nadd_action( 'init', function () {\n\tregister_post_type( 'case_study', [\n\t\t'label'          => 'Case studies',\n\t\t'public'         => true,\n\t\t'show_in_rest'   => true,\n\t\t'rest_base'      => 'case-studies',\n\t\t'rest_namespace' => 'acme/v1',\n\t\t'rewrite'        => [ 'slug' => 'work' ],\n\t\t'supports'       => [ 'title', 'editor' ],\n\t] );\n} );\n"
+		},
+		{
 			"step": "activatePlugin",
 			"pluginPath": "hm-rest-ability/hm-rest-ability.php",
 			"pluginName": "HM REST Ability"
@@ -55,6 +61,10 @@
 		{
 			"step": "runPHP",
 			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n\n$accounts = [];\n\nforeach ( [ 'admin' => null, 'subscriber' => 'subscriber' ] as $login => $role ) {\n\tif ( $role === null ) {\n\t\t$user = get_user_by( 'login', $login );\n\t} else {\n\t\t$user_id = wp_insert_user( [\n\t\t\t'user_login' => $login,\n\t\t\t'user_pass'  => wp_generate_password( 20 ),\n\t\t\t'user_email' => $login . '@example.com',\n\t\t\t'role'       => $role,\n\t\t] );\n\t\t$user = get_user_by( 'id', $user_id );\n\t}\n\n\tlist( $password ) = WP_Application_Passwords::create_new_application_password(\n\t\t$user->ID,\n\t\t[ 'name' => 'e2e-tests' ]\n\t);\n\n\t$accounts[ $login ] = [ 'user' => $user->user_login, 'password' => $password ];\n}\n\nfile_put_contents(\n\t'/wordpress/wp-content/plugins/hm-rest-ability/.playground-credentials.json',\n\tjson_encode( $accounts )\n);"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n\n// Pick up the permalink structure and the test post type's rewrite rules.\nflush_rewrite_rules();"
 		}
 	]
 }
