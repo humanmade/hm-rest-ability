@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Require PHP 8.2 or later, the oldest PHP version that still gets security fixes. The plugin header and `composer.json` said PHP 7.4, but the code has used PHP 8.0 union return types for a while, so it could not load on PHP 7.4 anyway. CI already tests PHP 8.2 to 8.4.
+
 ## [0.6.0] - 2026-10-01
 
 ### Added

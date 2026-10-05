@@ -3,10 +3,10 @@
 	<description>PHP Coding Standards for HM REST Ability</description>
 
 	<!-- Set the PHP version for PHP_CodeSniffer / HM Linter. -->
-	<config name="php_version" value="70400"/>
+	<config name="php_version" value="80200"/>
 
 	<!-- Set a minimum PHP version for PHPCompatibility. -->
-	<config name="testVersion" value="7.4-"/>
+	<config name="testVersion" value="8.2-"/>
 
 	<!-- Set a high memory limit. -->
 	<ini name="memory_limit" value="1024M"/>

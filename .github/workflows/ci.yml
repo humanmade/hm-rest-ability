@@ -34,11 +34,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                # humanmade/coding-standards (a require-dev tool, not a
-                # runtime dependency) needs PHP >=8.2, which is why this
-                # matrix doesn't reach down to the plugin's own "Requires
-                # PHP: 7.4". PHP 7.4 compatibility is checked statically
-                # instead, via the PHPCompatibilityWP sniff in `composer lint`.
+                # Starts at the plugin's own minimum, "Requires PHP: 8.2".
                 php: ['8.2', '8.3', '8.4']
         steps:
             - name: Checkout
