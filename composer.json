@@ -16,7 +16,8 @@
 	},
 	"require": {
 		"php": "^8.2",
-		"composer/installers": "^1 || ^2"
+		"composer/installers": "^1 || ^2",
+		"wordpress/mcp-adapter": "^0.7.0"
 	},
 	"require-dev": {
 		"humanmade/coding-standards": "^2.5",
@@ -32,7 +33,15 @@
 	"config": {
 		"allow-plugins": {
 			"dealerdirect/phpcodesniffer-composer-installer": true,
-			"composer/installers": true
+			"composer/installers": true,
+			"automattic/jetpack-autoloader": true
+		}
+	},
+	"extra": {
+		"installer-paths": {
+			"vendor/{$vendor}/{$name}/": [
+				"wordpress/mcp-adapter"
+			]
 		}
 	},
 	"minimum-stability": "dev",

@@ -23,7 +23,7 @@
 			"step": "installPlugin",
 			"pluginData": {
 				"resource": "url",
-				"url": "https://github.com/WordPress/mcp-adapter/releases/download/v0.6.1/mcp-adapter.zip"
+				"url": "https://github.com/WordPress/mcp-adapter/releases/download/v0.7.0/mcp-adapter.zip"
 			}
 		},
 		{

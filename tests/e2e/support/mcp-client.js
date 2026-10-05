@@ -83,6 +83,7 @@ class McpClient {
 
 		if ( this.sessionId ) {
 			headers[ 'Mcp-Session-Id' ] = this.sessionId;
+			headers[ 'MCP-Protocol-Version' ] = PROTOCOL_VERSION;
 		}
 
 		const response = await this.request.post( this.route, {
