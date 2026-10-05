@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ask the user to confirm each `rest-api-delete` call through MCP elicitation, when the client supports it (MCP 2026-07-28). The first call returns a confirmation form that names the item, and the delete runs only when the retry carries an accepted answer and a signed, unexpired `requestState` for the same user, route and params. Clients without elicitation support delete straight away, as before. In `inc/delete-confirmation.php`.
+
 ### Changed
 
 - Require PHP 8.2 or later, the oldest PHP version that still gets security fixes. The plugin header and `composer.json` said PHP 7.4, but the code has used PHP 8.0 union return types for a while, so it could not load on PHP 7.4 anyway. CI already tests PHP 8.2 to 8.4.
+- Require MCP Adapter 0.7.0 or later: `composer.json` now requires `wordpress/mcp-adapter ^0.7.0` and the Playground blueprint installs the v0.7.0 release.
+- Hide `rest-api/delete` from the generic `mcp-adapter-execute-ability` tool, so a delete can't skip the confirmation. It is served as the `rest-api-delete` tool instead. In `inc/delete-confirmation.php`.
 
 ## [0.6.0] - 2026-10-01
 

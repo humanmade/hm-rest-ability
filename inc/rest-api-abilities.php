@@ -115,26 +115,7 @@ function register_ability(): void {
 				'label'               => $tool['label'],
 				'description'         => $tool['description'],
 				'category'            => 'rest-api',
-				'input_schema'        => [
-					'type'       => 'object',
-					'properties' => [
-						'method' => [
-							'type'        => 'string',
-							'enum'        => $tool['methods'],
-							'description' => 'HTTP method',
-						],
-						'route'  => [
-							'type'        => 'string',
-							'description' => 'REST API route path, e.g. /wp/v2/posts or /wp/v2/posts/123',
-						],
-						'params' => [
-							'type'                 => 'object',
-							'description'          => 'Query params (GET/DELETE) or body params (POST/PUT/PATCH). Pass _fields to limit which fields come back.',
-							'additionalProperties' => true,
-						],
-					],
-					'required'   => [ 'method', 'route' ],
-				],
+				'input_schema'        => input_schema( $tool['methods'] ),
 				'permission_callback' => __NAMESPACE__ . '\\check_permission',
 				'execute_callback'    => __NAMESPACE__ . '\\execute',
 				'meta'                => [
@@ -147,6 +128,35 @@ function register_ability(): void {
 			]
 		);
 	}
+}
+
+/**
+ * Returns the input schema shared by the REST API tools.
+ *
+ * @param string[] $methods HTTP methods the tool accepts.
+ * @return array
+ */
+function input_schema( array $methods ): array {
+	return [
+		'type'       => 'object',
+		'properties' => [
+			'method' => [
+				'type'        => 'string',
+				'enum'        => $methods,
+				'description' => 'HTTP method',
+			],
+			'route'  => [
+				'type'        => 'string',
+				'description' => 'REST API route path, e.g. /wp/v2/posts or /wp/v2/posts/123',
+			],
+			'params' => [
+				'type'                 => 'object',
+				'description'          => 'Query params (GET/DELETE) or body params (POST/PUT/PATCH). Pass _fields to limit which fields come back.',
+				'additionalProperties' => true,
+			],
+		],
+		'required'   => [ 'method', 'route' ],
+	];
 }
 
 /**

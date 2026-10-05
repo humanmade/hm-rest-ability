@@ -59,6 +59,7 @@ and the WordPress Abilities API.
   `content` object with a `block_version` property, which core adds only for
   post types that support the editor) — see `inc/content-field-guidance.php`.
   A third module covers core's design routes, whose paths don't say where their parameters come from: `/wp/v2/global-styles/{id}` explains that the id is the user global styles post linked from the active theme (`wp:user-global-styles`), `/wp/v2/global-styles/themes/{stylesheet}` explains the stylesheet slug, and `/wp/v2/block-patterns/patterns` and `/wp/v2/blocks` each point at the other for the kind of pattern they don't hold — see `inc/design-route-guidance.php`.
+- Confirms each delete with the user when the MCP client supports it. If the client supports elicitation (MCP 2026-07-28), every `rest-api-delete` call first returns a form asking the user to confirm, and nothing is deleted until they accept. The confirmation names the item's title where the route returns one, and it only works for the user, route and params it was issued for, and only for ten minutes. Other clients get the delete straight away, as before. To make this possible, `rest-api-delete` is a direct tool rather than an ability-backed one, and the `rest-api/delete` ability is hidden from the generic `mcp-adapter-execute-ability` tool, which can no longer run it. See `inc/delete-confirmation.php`.
 - Adds `GET /hm-rest-ability/v1/url-lookup?url=…`, which finds the post, page or file at a URL and returns its `id` and post `type`, with a `self` link to its own REST resource. It takes a full URL, a path, or the same URL on another host, such as a production address on a staging site. Any post type is covered, custom ones included, because the lookup uses the site's own rewrite rules through `url_to_postid()`. It only finds items the current user can read, and answers `404` otherwise — see `inc/url-lookup.php`. The `rest-api/read` tool description points at it.
 
 **Media upload ability** (`inc/media-abilities.php`)
@@ -74,9 +75,7 @@ and the WordPress Abilities API.
 
 - WordPress 6.9+ (for the built-in [Abilities API](https://make.wordpress.org/core/))
 - PHP 8.2+, the oldest PHP version that still gets security fixes
-- The [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin
-  (`wordpress/mcp-adapter` on Packagist), declared as a dependency via the
-  `Requires Plugins` header.
+- The [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin, version 0.7.0 or later (`wordpress/mcp-adapter` on Packagist), declared as a dependency via the `Requires Plugins` header. WordPress can't express a version in that header, so check the version yourself. Composer installs of this plugin now pull `wordpress/mcp-adapter ^0.7.0`.
 
 ## Installation
 
