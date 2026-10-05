@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-05
+
 ### Added
 
 - Ask the user to confirm risky calls through MCP elicitation, when the client supports it (MCP 2026-07-28). Every `rest-api-delete` call asks, and so does a `rest-api-write` call to a site-config route such as `/wp/v2/settings`, `/wp/v2/users` or `/wp/v2/plugins`. The first call returns a confirmation form that describes the change and how risky it is, and the call runs only when the retry carries an accepted answer and a signed, unexpired `requestState` for the same user, route and params. Routine writes, and clients without elicitation support, run straight away, as before. The new `hm_rest_ability_needs_confirmation` filter changes which calls ask. In `inc/confirmation.php`.
@@ -110,7 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rest-api/call` ability for dispatching internal WordPress REST API
   requests from MCP clients.
 
-[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.3.0...v0.4.0
