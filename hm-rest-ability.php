@@ -5,7 +5,7 @@
  * Description:       A REST API ability, for exposing WordPress to MCP clients via the MCP Adapter.
  * Version:           __VERSION__
  * Requires at least: 6.9
- * Requires PHP:      7.4
+ * Requires PHP:      8.2
  * Requires Plugins:  mcp-adapter
  * Author:            Human Made
  * Author URI:        https://humanmade.com

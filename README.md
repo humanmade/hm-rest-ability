@@ -73,7 +73,7 @@ and the WordPress Abilities API.
 ## Requirements
 
 - WordPress 6.9+ (for the built-in [Abilities API](https://make.wordpress.org/core/))
-- PHP 7.4+
+- PHP 8.2+, the oldest PHP version that still gets security fixes
 - The [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin
   (`wordpress/mcp-adapter` on Packagist), declared as a dependency via the
   `Requires Plugins` header.
