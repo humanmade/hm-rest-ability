@@ -1,16 +1,19 @@
 <?php
 /**
- * Serves `rest-api-delete` as a direct MCP tool that asks the user to confirm
- * each deletion through MCP elicitation, when the client supports it.
+ * Serves `rest-api-write` and `rest-api-delete` as direct MCP tools that ask
+ * the user to confirm risky calls through MCP elicitation, when the client
+ * supports it.
  *
- * Clients that can't show an elicitation form get the delete straight away,
- * as before. Needs MCP Adapter 0.7.0 or later; on older versions the
- * `rest-api/delete` ability is served as a plain ability-backed tool.
+ * Every delete is risky, and so is any write to a route that
+ * `classify_route()` rates above `routine`. Clients that can't show an
+ * elicitation form get the call straight away, as before. Needs MCP Adapter
+ * 0.7.0 or later; on older versions both abilities are served as plain
+ * ability-backed tools.
  *
  * @package HM\RestAbility
  */
 
-namespace HM\DeleteConfirmation;
+namespace HM\Confirmation;
 
 use WP\MCP\Domain\Tools\McpInputRequired;
 use WP\MCP\Domain\Tools\McpTool;
@@ -22,19 +25,22 @@ use WP_REST_Request;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\input_schema;
 use function HM\RestApiAbilities\tool_definitions;
+use function HM\RouteRisk\classify_route;
 
 // Exit if accessed directly.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const ABILITY_NAME = 'rest-api/delete';
-const TOOL_NAME    = 'rest-api-delete';
+/**
+ * Abilities served as direct tools, so they can ask for confirmation.
+ */
+const ABILITY_NAMES = [ 'rest-api/write', 'rest-api/delete' ];
 
 /**
  * Key of the confirmation form in the elicitation request and response maps.
  */
-const INPUT_KEY = 'confirm_delete';
+const INPUT_KEY = 'confirm';
 
 /**
  * How long, in seconds, a confirmation request stays valid.
@@ -54,15 +60,15 @@ function is_available(): bool {
 }
 
 /**
- * Takes the delete ability off the MCP server's generic ability tools, so
- * `mcp-adapter-execute-ability` can't run a delete without confirmation.
+ * Takes the write and delete abilities off the MCP server's generic ability
+ * tools, so `mcp-adapter-execute-ability` can't run them without confirmation.
  *
  * @param array  $args Ability registration args.
  * @param string $name Ability name.
  * @return array
  */
 function hide_ability_from_mcp( array $args, string $name ): array {
-	if ( ABILITY_NAME !== $name || ! is_available() ) {
+	if ( ! in_array( $name, ABILITY_NAMES, true ) || ! is_available() ) {
 		return $args;
 	}
 
@@ -72,7 +78,7 @@ function hide_ability_from_mcp( array $args, string $name ): array {
 }
 
 /**
- * Swaps the ability-backed delete tool for the direct tool.
+ * Swaps the ability-backed write and delete tools for direct tools.
  *
  * @param array $config Default server config.
  * @return array
@@ -82,14 +88,18 @@ function filter_mcp_server_config( array $config ): array {
 		return $config;
 	}
 
-	$tool = build_tool();
+	$tools = $config['tools'] ?? [];
 
-	if ( is_wp_error( $tool ) ) {
-		return $config;
+	foreach ( ABILITY_NAMES as $ability_name ) {
+		$tool = build_tool( $ability_name );
+
+		if ( is_wp_error( $tool ) ) {
+			continue;
+		}
+
+		$tools   = array_values( array_filter( $tools, static fn( $existing ) => $existing !== $ability_name ) );
+		$tools[] = $tool;
 	}
-
-	$tools   = array_values( array_diff( $config['tools'] ?? [], [ ABILITY_NAME ] ) );
-	$tools[] = $tool;
 
 	$config['tools'] = $tools;
 
@@ -97,41 +107,100 @@ function filter_mcp_server_config( array $config ): array {
 }
 
 /**
- * Builds the direct delete tool from the ability's definition.
+ * Builds a direct tool from an ability's definition.
  *
+ * @param string $ability_name `rest-api/write` or `rest-api/delete`.
  * @return McpTool|WP_Error
  */
-function build_tool(): McpTool|WP_Error {
-	$definition  = tool_definitions()[ ABILITY_NAME ];
+function build_tool( string $ability_name ): McpTool|WP_Error {
+	$definition  = tool_definitions()[ $ability_name ];
 	$annotations = McpAnnotationMapper::map( $definition['annotations'], 'tool' );
 
 	$annotations['title'] = $definition['label'];
 
 	return McpTool::fromArray(
 		[
-			'name'        => TOOL_NAME,
+			'name'        => str_replace( '/', '-', $ability_name ),
 			'title'       => $definition['label'],
 			'description' => $definition['description'],
 			'inputSchema' => input_schema( $definition['methods'] ),
 			'annotations' => $annotations,
 			'handler'     => __NAMESPACE__ . '\\handle',
-			'permission'  => 'HM\\RestApiAbilities\\check_permission',
+			'permission'  => static fn( $args ) => check_permission( $ability_name, (array) $args ),
 		]
 	);
 }
 
 /**
- * Handles a call to the delete tool.
+ * Checks a call against the tool's input schema, then runs the REST API
+ * permission checks.
  *
- * The first call asks the client to confirm with the user. The client then
- * calls again with the user's answer, and the delete runs only if they
+ * The adapter doesn't validate direct tool arguments, so without this the
+ * write tool would also send a DELETE.
+ *
+ * @param string $ability_name `rest-api/write` or `rest-api/delete`.
+ * @param array  $args         Tool arguments.
+ * @return bool|WP_Error
+ */
+function check_permission( string $ability_name, array $args ): bool|WP_Error {
+	$schema = input_schema( tool_definitions()[ $ability_name ]['methods'] );
+	$valid  = rest_validate_value_from_schema( $args, $schema, 'input' );
+
+	if ( is_wp_error( $valid ) ) {
+		return $valid;
+	}
+
+	return \HM\RestApiAbilities\check_permission( $args );
+}
+
+/**
+ * Whether a call should ask the user to confirm it first.
+ *
+ * @param array $args Tool arguments, keyed by `method`, `route`, `params`.
+ * @return bool
+ */
+function needs_confirmation( array $args ): bool {
+	$method = strtoupper( $args['method'] ?? '' );
+	$route  = $args['route'] ?? '';
+	$params = $args['params'] ?? [];
+	$risk   = classify_route( $route, $method, $params );
+
+	/**
+	 * Filters whether a REST API call asks the user to confirm it first, when
+	 * the MCP client supports elicitation.
+	 *
+	 * @param bool   $needs  True for every DELETE, and for any write to a route rated above `routine`.
+	 * @param string $method HTTP method.
+	 * @param string $route  REST route path.
+	 * @param array  $params Query or body params.
+	 * @param string $risk   One of `routine`, `site-config`, `irreversible`.
+	 */
+	return (bool) apply_filters(
+		'hm_rest_ability_needs_confirmation',
+		'DELETE' === $method || 'routine' !== $risk,
+		$method,
+		$route,
+		$params,
+		$risk
+	);
+}
+
+/**
+ * Handles a call to the write or delete tool.
+ *
+ * A risky call first asks the client to confirm with the user. The client
+ * then calls again with the user's answer, and the call runs only if they
  * accepted.
  *
- * @param array                    $args    Tool arguments, keyed by `method`, `route`, `params`.
+ * @param array                   $args    Tool arguments, keyed by `method`, `route`, `params`.
  * @param McpToolCallContext|null $context Client input for this call.
  * @return array|McpInputRequired|WP_Error
  */
 function handle( array $args, ?McpToolCallContext $context = null ) {
+	if ( ! needs_confirmation( $args ) ) {
+		return execute( $args );
+	}
+
 	if ( null !== $context && $context->is_continuation() ) {
 		$confirmed = check_confirmation( $context, $args );
 
@@ -149,12 +218,14 @@ function handle( array $args, ?McpToolCallContext $context = null ) {
 }
 
 /**
- * Builds the elicitation request that asks the user to confirm a delete.
+ * Builds the elicitation request that asks the user to confirm a call.
  *
  * @param array $args Tool arguments.
  * @return array
  */
 function confirmation_request( array $args ): array {
+	$is_delete = 'DELETE' === strtoupper( $args['method'] ?? '' );
+
 	return [
 		'method' => 'elicitation/create',
 		'params' => [
@@ -165,8 +236,8 @@ function confirmation_request( array $args ): array {
 				'properties' => [
 					'confirm' => [
 						'type'        => 'boolean',
-						'title'       => 'Yes, delete it',
-						'description' => 'Tick to confirm. This changes the live site and may not be undone.',
+						'title'       => $is_delete ? 'Yes, delete it' : 'Yes, make this change',
+						'description' => 'Tick to confirm. This changes the live site.',
 						'default'     => false,
 					],
 				],
@@ -177,25 +248,50 @@ function confirmation_request( array $args ): array {
 }
 
 /**
- * Describes the delete for the user, naming the item where the route has one.
+ * Describes the call for the user: what it does, where, and how risky it is.
  *
  * @param array $args Tool arguments.
  * @return string
  */
 function confirmation_message( array $args ): string {
+	$method = strtoupper( $args['method'] ?? '' );
 	$route  = $args['route'] ?? '';
 	$params = $args['params'] ?? [];
-	$label  = target_label( $route );
+	$site   = get_bloginfo( 'name' );
 
-	$message = '' === $label
-		? sprintf( 'Delete %s on %s?', $route, get_bloginfo( 'name' ) )
-		: sprintf( 'Delete "%s" (%s) on %s?', $label, $route, get_bloginfo( 'name' ) );
+	if ( 'DELETE' === $method ) {
+		$label   = target_label( $route );
+		$message = '' === $label
+			? sprintf( 'Delete %s on %s?', $route, $site )
+			: sprintf( 'Delete "%s" (%s) on %s?', $label, $route, $site );
+	} else {
+		$message = sprintf( 'Change %s (%s) on %s?', $route, $method, $site );
+	}
+
+	$message .= ' ' . risk_sentence( classify_route( $route, $method, $params ) );
 
 	if ( ! empty( $params ) ) {
 		$message .= ' Params: ' . wp_json_encode( $params ) . '.';
 	}
 
 	return $message;
+}
+
+/**
+ * Returns one sentence telling the user what kind of change this is.
+ *
+ * @param string $risk One of `routine`, `site-config`, `irreversible`.
+ * @return string
+ */
+function risk_sentence( string $risk ): string {
+	switch ( $risk ) {
+		case 'irreversible':
+			return 'This cannot be undone.';
+		case 'site-config':
+			return 'This changes site settings or who has access.';
+		default:
+			return 'It may not be possible to undo this.';
+	}
 }
 
 /**
@@ -228,7 +324,7 @@ function check_confirmation( McpToolCallContext $context, array $args ): bool|WP
 	if ( ! verify_state( (string) $context->request_state(), $args ) ) {
 		return new WP_Error(
 			'rest_ability_confirmation_invalid',
-			'This confirmation is missing, expired, or for a different request. Nothing was deleted. Call the tool again to ask the user.'
+			'This confirmation is missing, expired, or for a different request. Nothing was changed. Call the tool again to ask the user.'
 		);
 	}
 
@@ -236,7 +332,7 @@ function check_confirmation( McpToolCallContext $context, array $args ): bool|WP
 	$accepted = 'accept' === ( $response->action ?? null ) && true === ( $response->content->confirm ?? null );
 
 	if ( ! $accepted ) {
-		return new WP_Error( 'rest_ability_delete_not_confirmed', 'The user did not confirm the delete. Nothing was deleted.' );
+		return new WP_Error( 'rest_ability_not_confirmed', 'The user did not confirm. Nothing was changed.' );
 	}
 
 	return true;
