@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ask the user to confirm risky calls through MCP elicitation, when the client supports it (MCP 2026-07-28). Every `rest-api-delete` call asks, and so does a `rest-api-write` call to a site-config route such as `/wp/v2/settings`, `/wp/v2/users` or `/wp/v2/plugins`. The first call returns a confirmation form that describes the change and how risky it is, and the call runs only when the retry carries an accepted answer and a signed, unexpired `requestState` for the same user, route and params. Routine writes, and clients without elicitation support, run straight away, as before. The new `hm_rest_ability_needs_confirmation` filter changes which calls ask. In `inc/confirmation.php`.
+
 ### Changed
 
 - Require PHP 8.2 or later, the oldest PHP version that still gets security fixes. The plugin header and `composer.json` said PHP 7.4, but the code has used PHP 8.0 union return types for a while, so it could not load on PHP 7.4 anyway. CI already tests PHP 8.2 to 8.4.
+- Require MCP Adapter 0.7.0 or later: `composer.json` now requires `wordpress/mcp-adapter ^0.7.0` and the Playground blueprint installs the v0.7.0 release.
+- Hide `rest-api/write` and `rest-api/delete` from the generic `mcp-adapter-execute-ability` tool, so neither can skip the confirmation. They are served as the `rest-api-write` and `rest-api-delete` tools instead, and each checks the HTTP method against its own list, so the write tool refuses a `DELETE` and the delete tool refuses a `POST`. In `inc/confirmation.php`.
 
 ## [0.6.0] - 2026-10-01
 

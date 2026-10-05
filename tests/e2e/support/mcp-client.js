@@ -1,23 +1,34 @@
 const { authHeaders, anonymousHeaders } = require( './credentials' );
 
 const PROTOCOL_VERSION = '2025-06-18';
+const STATELESS_PROTOCOL_VERSION = '2026-07-28';
+const CLIENT_INFO = { name: 'hm-rest-ability-e2e', version: '1.0.0' };
 
 /**
  * A small MCP client, speaking JSON-RPC over the adapter's HTTP transport.
  *
  * Enough of the protocol to drive the server the way a real client would:
  * discover the endpoint, shake hands, list tools, and call them.
+ *
+ * Speaks the 2025 protocol with a session by default. `connect2026()` gives a
+ * 2026-07-28 client instead: no handshake or session, with the protocol
+ * version, client capabilities and client info sent on every request.
  */
 class McpClient {
 	/**
-	 * @param {import('@playwright/test').APIRequestContext} request Playwright request context.
-	 * @param {string}                                       route   MCP endpoint path.
+	 * @param {import('@playwright/test').APIRequestContext} request      Playwright request context.
+	 * @param {string}                                       route        MCP endpoint path.
+	 * @param {string}                                       role         Account to connect as.
+	 * @param {Object}                                       extraHeaders Headers to send with every call.
+	 * @param {Object|null}                                  capabilities Client capabilities to send on every call, which
+	 *                                                                    switches the client to the 2026-07-28 protocol.
 	 */
-	constructor( request, route, role = 'admin', extraHeaders = {} ) {
+	constructor( request, route, role = 'admin', extraHeaders = {}, capabilities = null ) {
 		this.request = request;
 		this.route = route;
 		this.role = role;
 		this.extraHeaders = extraHeaders;
+		this.capabilities = capabilities;
 		this.sessionId = null;
 		this.nextId = 1;
 	}
@@ -35,6 +46,18 @@ class McpClient {
 		await client.initialize();
 
 		return client;
+	}
+
+	/**
+	 * Finds the MCP endpoint for a 2026-07-28 client. There is no handshake.
+	 *
+	 * @param {import('@playwright/test').APIRequestContext} request      Playwright request context.
+	 * @param {string}                                       role         Account to connect as.
+	 * @param {Object}                                       capabilities Client capabilities, e.g. `{ elicitation: { form: {} } }`.
+	 * @return {Promise<McpClient>} A client ready to take calls.
+	 */
+	static async connect2026( request, role = 'admin', capabilities = {} ) {
+		return new McpClient( request, await McpClient.discoverRoute( request ), role, {}, capabilities );
 	}
 
 	/**
@@ -81,8 +104,26 @@ class McpClient {
 			Accept: 'application/json, text/event-stream',
 		};
 
-		if ( this.sessionId ) {
+		if ( this.capabilities ) {
+			headers[ 'MCP-Protocol-Version' ] = STATELESS_PROTOCOL_VERSION;
+			headers[ 'Mcp-Method' ] = method;
+
+			if ( 'tools/call' === method ) {
+				headers[ 'Mcp-Name' ] = params.name;
+			}
+
+			params = {
+				...params,
+				_meta: {
+					...params._meta,
+					'io.modelcontextprotocol/protocolVersion': STATELESS_PROTOCOL_VERSION,
+					'io.modelcontextprotocol/clientCapabilities': this.capabilities,
+					'io.modelcontextprotocol/clientInfo': CLIENT_INFO,
+				},
+			};
+		} else if ( this.sessionId ) {
 			headers[ 'Mcp-Session-Id' ] = this.sessionId;
+			headers[ 'MCP-Protocol-Version' ] = PROTOCOL_VERSION;
 		}
 
 		const response = await this.request.post( this.route, {
@@ -112,7 +153,7 @@ class McpClient {
 		const { body } = await this.send( 'initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			capabilities: {},
-			clientInfo: { name: 'hm-rest-ability-e2e', version: '1.0.0' },
+			clientInfo: CLIENT_INFO,
 		} );
 
 		if ( ! this.sessionId ) {
@@ -138,15 +179,30 @@ class McpClient {
 	 * `isError` result is returned rather than thrown, so tests can assert on
 	 * failures as easily as successes.
 	 *
+	 * A 2026-07-28 client can answer an `input_required` result by calling again
+	 * with the user's `inputResponses` and the `requestState` it was given.
+	 *
 	 * @param {string} name      Tool name.
 	 * @param {Object} args      Tool arguments.
-	 * @return {Promise<{isError: boolean, data: Object, text: string}>} The result.
+	 * @param {Object} options   `inputResponses` and `requestState` to send with a retry.
+	 * @return {Promise<{isError: boolean, data: Object, text: string, result: Object}>} The parsed result, plus the
+	 *                                                                                    raw `result` object (null for a JSON-RPC error).
 	 */
-	async callTool( name, args ) {
-		const { body } = await this.send( 'tools/call', { name, arguments: args } );
+	async callTool( name, args, { inputResponses, requestState } = {} ) {
+		const params = { name, arguments: args };
+
+		if ( undefined !== inputResponses ) {
+			params.inputResponses = inputResponses;
+		}
+
+		if ( undefined !== requestState ) {
+			params.requestState = requestState;
+		}
+
+		const { body } = await this.send( 'tools/call', params );
 
 		if ( body.error ) {
-			return { isError: true, data: body.error, text: JSON.stringify( body.error ) };
+			return { isError: true, data: body.error, text: JSON.stringify( body.error ), result: null };
 		}
 
 		const text = body.result.content?.[ 0 ]?.text ?? '';
@@ -158,8 +214,8 @@ class McpClient {
 			data = null;
 		}
 
-		return { isError: !! body.result.isError, data, text };
+		return { isError: !! body.result.isError, data, text, result: body.result };
 	}
 }
 
-module.exports = { McpClient, PROTOCOL_VERSION };
+module.exports = { McpClient, PROTOCOL_VERSION, STATELESS_PROTOCOL_VERSION };
