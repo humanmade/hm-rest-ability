@@ -298,6 +298,98 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertTrue( $result );
 	}
 
+	/**
+	 * Returns a route table shaped like core's single-plugin route, whose
+	 * sanitize_callback adds the `.php` suffix the permission check needs.
+	 *
+	 * @param callable $permission_callback Permission callback for GET.
+	 * @return WP_REST_Server
+	 */
+	private function plugin_route_server( callable $permission_callback ): WP_REST_Server {
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/plugins/(?P<plugin>[^.\/]+(?:\/[^.\/]+)?)' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => $permission_callback,
+					'args'                => [
+						'plugin'  => [
+							'sanitize_callback' => static fn ( $plugin ) => $plugin . '.php',
+						],
+						'context' => [
+							'default' => 'view',
+						],
+					],
+				],
+			],
+		] );
+
+		return $server;
+	}
+
+	public function test_check_permission_sanitizes_url_params_before_the_permission_callback(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
+
+		$seen   = [];
+		$server = $this->plugin_route_server(
+			static function ( $request ) use ( &$seen ) {
+				$seen = [
+					'plugin'  => $request->get_param( 'plugin' ),
+					'context' => $request->get_param( 'context' ),
+				];
+
+				return 'akismet/akismet.php' === $seen['plugin']
+					? true
+					: new WP_Error( 'rest_plugin_not_found', 'Plugin not found.' );
+			}
+		);
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [ 'method' => 'GET', 'route' => '/wp/v2/plugins/akismet/akismet' ] );
+
+		$this->assertTrue( $result );
+		$this->assertSame( [ 'plugin' => 'akismet/akismet.php', 'context' => 'view' ], $seen );
+	}
+
+	public function test_check_permission_returns_invalid_params_without_running_the_permission_callback(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$called = false;
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => static function () use ( &$called ) {
+						$called = true;
+						return true;
+					},
+					'args'                => [
+						'per_page' => [
+							'validate_callback' => static fn ( $value ) => is_numeric( $value )
+								? true
+								: new WP_Error( 'rest_invalid_type', 'per_page is not of type integer.' ),
+						],
+					],
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [
+			'method' => 'GET',
+			'route'  => '/wp/v2/posts',
+			'params' => [ 'per_page' => 'lots' ],
+		] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'rest_invalid_param', $result->get_error_code() );
+		$this->assertSame( 'Invalid parameter(s): per_page. per_page is not of type integer.', $result->get_error_message() );
+		$this->assertSame( [ 'per_page' => 'per_page is not of type integer.' ], $result->get_error_data()['params'] );
+		$this->assertFalse( $called );
+	}
+
 	public function test_check_permission_policy_filter_never_runs_after_a_capability_denial(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
 

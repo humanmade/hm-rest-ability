@@ -219,6 +219,26 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 				$accepted = array_merge( $accepted, array_keys( $handler['methods'] ?? [] ) );
 				continue;
 			}
+
+			// Prepare the request the way WP_REST_Server::dispatch() does
+			// before it runs the permission callback.
+			$request->set_attributes( $handler );
+			$defaults = [];
+			foreach ( $handler['args'] ?? [] as $arg => $options ) {
+				if ( isset( $options['default'] ) ) {
+					$defaults[ $arg ] = $options['default'];
+				}
+			}
+			$request->set_default_params( $defaults );
+			$valid = $request->has_valid_params();
+			if ( is_wp_error( $valid ) ) {
+				return with_param_reasons( $valid );
+			}
+			$sanitized = $request->sanitize_params();
+			if ( is_wp_error( $sanitized ) ) {
+				return with_param_reasons( $sanitized );
+			}
+
 			$permission_callback = $handler['permission_callback'] ?? null;
 			if ( ! $permission_callback || $permission_callback === '__return_true' ) {
 				return true;
@@ -250,6 +270,35 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 			'status'      => 404,
 			'suggestions' => $suggestions,
 		]
+	);
+}
+
+/**
+ * Adds the reason for each invalid param to a validation error's message.
+ *
+ * Core keeps those reasons in the error data, which MCP clients don't see.
+ *
+ * @param WP_Error $error Error from has_valid_params() or sanitize_params().
+ * @return WP_Error
+ */
+function with_param_reasons( WP_Error $error ): WP_Error {
+	$data    = $error->get_error_data();
+	$reasons = [];
+
+	foreach ( $data['params'] ?? [] as $param => $reason ) {
+		if ( is_string( $param ) && is_string( $reason ) ) {
+			$reasons[] = $reason;
+		}
+	}
+
+	if ( ! $reasons ) {
+		return $error;
+	}
+
+	return new WP_Error(
+		$error->get_error_code(),
+		$error->get_error_message() . '. ' . implode( ' ', $reasons ),
+		$data
 	);
 }
 

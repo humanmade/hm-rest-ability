@@ -61,6 +61,8 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 		private array $query_params = [];
 		private array $body_params = [];
 		private array $url_params = [];
+		private array $default_params = [];
+		private array $attributes = [];
 		private array $headers = [];
 		private string $body = '';
 
@@ -86,7 +88,11 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 		}
 
 		public function get_param( string $key ) {
-			return $this->query_params[ $key ] ?? $this->body_params[ $key ] ?? null;
+			return $this->query_params[ $key ]
+				?? $this->body_params[ $key ]
+				?? $this->url_params[ $key ]
+				?? $this->default_params[ $key ]
+				?? null;
 		}
 
 		public function set_body_params( array $params ): void {
@@ -103,6 +109,80 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 
 		public function get_url_params(): array {
 			return $this->url_params;
+		}
+
+		public function set_default_params( array $params ): void {
+			$this->default_params = $params;
+		}
+
+		public function set_attributes( array $attributes ): void {
+			$this->attributes = $attributes;
+		}
+
+		public function get_attributes(): array {
+			return $this->attributes;
+		}
+
+		/**
+		 * Checks required args are present and runs each arg's
+		 * validate_callback, like core.
+		 */
+		public function has_valid_params() {
+			$invalid = [];
+
+			foreach ( $this->attributes['args'] ?? [] as $key => $arg ) {
+				$value = $this->get_param( $key );
+
+				if ( null === $value ) {
+					if ( ! empty( $arg['required'] ) ) {
+						return new WP_Error( 'rest_missing_callback_param', "Missing parameter(s): $key", [ 'status' => 400, 'params' => [ $key ] ] );
+					}
+					continue;
+				}
+
+				if ( isset( $arg['validate_callback'] ) ) {
+					$valid = call_user_func( $arg['validate_callback'], $value, $this, $key );
+					if ( false === $valid ) {
+						$invalid[ $key ] = 'Invalid parameter.';
+					} elseif ( is_wp_error( $valid ) ) {
+						$invalid[ $key ] = $valid->get_error_message();
+					}
+				}
+			}
+
+			if ( $invalid ) {
+				return new WP_Error(
+					'rest_invalid_param',
+					'Invalid parameter(s): ' . implode( ', ', array_keys( $invalid ) ),
+					[ 'status' => 400, 'params' => $invalid ]
+				);
+			}
+
+			return true;
+		}
+
+		/**
+		 * Runs each arg's sanitize_callback over the params it applies to,
+		 * like core.
+		 */
+		public function sanitize_params() {
+			foreach ( [ 'query_params', 'body_params', 'url_params', 'default_params' ] as $type ) {
+				foreach ( $this->{$type} as $key => $value ) {
+					$callback = $this->attributes['args'][ $key ]['sanitize_callback'] ?? null;
+					if ( ! $callback ) {
+						continue;
+					}
+
+					$sanitized = call_user_func( $callback, $value, $this, $key );
+					if ( is_wp_error( $sanitized ) ) {
+						return new WP_Error( 'rest_invalid_param', "Invalid parameter(s): $key", [ 'status' => 400 ] );
+					}
+
+					$this->{$type}[ $key ] = $sanitized;
+				}
+			}
+
+			return true;
 		}
 
 		public function set_body( string $body ): void {
