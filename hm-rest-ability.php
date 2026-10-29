@@ -27,12 +27,24 @@ define( 'HM_REST_ABILITY_VERSION', '__VERSION__' );
 define( 'HM_REST_ABILITY_PATH', plugin_dir_path( __FILE__ ) );
 define( 'HM_REST_ABILITY_URL', plugin_dir_url( __FILE__ ) );
 
-require_once HM_REST_ABILITY_PATH . 'inc/route-risk.php';
-require_once HM_REST_ABILITY_PATH . 'inc/status-field-guidance.php';
-require_once HM_REST_ABILITY_PATH . 'inc/content-field-guidance.php';
-require_once HM_REST_ABILITY_PATH . 'inc/design-route-guidance.php';
-require_once HM_REST_ABILITY_PATH . 'inc/route-suggestions.php';
-require_once HM_REST_ABILITY_PATH . 'inc/url-lookup.php';
-require_once HM_REST_ABILITY_PATH . 'inc/rest-api-abilities.php';
-require_once HM_REST_ABILITY_PATH . 'inc/confirmation.php';
-require_once HM_REST_ABILITY_PATH . 'inc/media-abilities.php';
+/**
+ * Loads the plugin's modules, each of which hooks itself in as it loads,
+ * unless the site has turned AI off.
+ */
+function bootstrap(): void {
+	if ( function_exists( 'wp_supports_ai' ) && ! wp_supports_ai() ) {
+		return;
+	}
+
+	require_once HM_REST_ABILITY_PATH . 'inc/route-risk.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/status-field-guidance.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/content-field-guidance.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/design-route-guidance.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/route-suggestions.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/url-lookup.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/rest-api-abilities.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/confirmation.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/media-abilities.php';
+}
+
+add_action( 'plugins_loaded', __NAMESPACE__ . '\\bootstrap' );
