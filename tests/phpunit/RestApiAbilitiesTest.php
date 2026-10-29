@@ -579,6 +579,12 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
 		$this->assertSame( count( $result['data'] ), $result['truncated']['returned'] );
 		$this->assertSame( 50, $result['truncated']['total'] );
+		$this->assertStringContainsString(
+			sprintf( 'per_page of %d or fewer', $result['truncated']['returned'] ),
+			$result['truncated']['hint']
+		);
+		$this->assertStringContainsString( 'page', $result['truncated']['hint'] );
+		$this->assertStringContainsString( '_fields', $result['truncated']['hint'] );
 	}
 
 	public function test_cap_response_data_drops_the_largest_object_fields(): void {
@@ -592,6 +598,7 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$this->assertSame( [ 'name' => 'Test site' ], $result['data'] );
 		$this->assertArrayHasKey( 'routes', $result['truncated']['omitted_fields'] );
+		$this->assertSame( 'Narrow the response with _fields, per_page, or a more specific route.', $result['truncated']['hint'] );
 	}
 
 	public function test_execute_applies_fields_when_requested(): void {

@@ -702,6 +702,10 @@ function cap_response_data( $data ): array {
 
 		$truncated['returned'] = count( $kept );
 		$truncated['total']    = count( $data );
+		$truncated['hint']     = sprintf(
+			'Request per_page of %d or fewer and step through the list with page, or narrow each item with _fields.',
+			max( 1, count( $kept ) )
+		);
 
 		return [
 			'data'      => $kept,
