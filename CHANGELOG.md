@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-29
+
 ### Changed
 
 - Treat the client's Accept as the confirmation for a risky call. The confirmation form no longer has a "Yes, delete it" or "Yes, make this change" box, which some clients showed as a small checkbox next to Accept, so a user could press Accept with the box unticked and the call was refused. A decline, a cancel, a missing answer and an accept with `confirm: false` now each get their own message, so an agent can tell them apart. The last one also has its own error code, `rest_ability_confirmation_unticked`. In `inc/confirmation.php`.
@@ -127,7 +129,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rest-api/call` ability for dispatching internal WordPress REST API
   requests from MCP clients.
 
-[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.5.0...v0.6.0
