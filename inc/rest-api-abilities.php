@@ -276,7 +276,9 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 /**
  * Adds the reason for each invalid param to a validation error's message.
  *
- * Core keeps those reasons in the error data, which MCP clients don't see.
+ * Core keeps those reasons in the error data, which MCP clients don't see. A
+ * reason that doesn't name its param, such as "Invalid parameter.", gets the
+ * param name in front.
  *
  * @param WP_Error $error Error from has_valid_params() or sanitize_params().
  * @return WP_Error
@@ -286,9 +288,12 @@ function with_param_reasons( WP_Error $error ): WP_Error {
 	$reasons = [];
 
 	foreach ( $data['params'] ?? [] as $param => $reason ) {
-		if ( is_string( $param ) && is_string( $reason ) ) {
-			$reasons[] = $reason;
+		if ( ! is_string( $param ) || ! is_string( $reason ) ) {
+			continue;
 		}
+
+		$names_param = preg_match( '/\b' . preg_quote( $param, '/' ) . '\b/', $reason );
+		$reasons[]   = $names_param ? $reason : $param . ': ' . $reason;
 	}
 
 	if ( ! $reasons ) {

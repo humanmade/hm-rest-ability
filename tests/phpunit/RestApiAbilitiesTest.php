@@ -410,6 +410,40 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertFalse( $called );
 	}
 
+	public function test_check_permission_names_the_param_for_a_generic_reason(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/things' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => '__return_true',
+					'args'                => [
+						'id'     => [
+							'validate_callback' => static fn () => false,
+						],
+						'status' => [
+							'validate_callback' => static fn () => false,
+						],
+					],
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [
+			'method' => 'GET',
+			'route'  => '/wp/v2/things',
+			'params' => [ 'id' => 'x', 'status' => 'y' ],
+		] );
+
+		$this->assertSame(
+			'Invalid parameter(s): id, status. id: Invalid parameter. status: Invalid parameter.',
+			$result->get_error_message()
+		);
+	}
+
 	public function test_check_permission_policy_filter_never_runs_after_a_capability_denial(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
 
