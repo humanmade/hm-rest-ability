@@ -627,8 +627,22 @@ class RestApiAbilitiesTest extends TestCase {
 			sprintf( 'per_page of %d or fewer', $result['truncated']['returned'] ),
 			$result['truncated']['hint']
 		);
+		$this->assertStringContainsString( 'If the route supports pagination', $result['truncated']['hint'] );
 		$this->assertStringContainsString( 'page', $result['truncated']['hint'] );
 		$this->assertStringContainsString( '_fields', $result['truncated']['hint'] );
+	}
+
+	public function test_cap_response_data_says_so_when_a_single_list_item_is_over_the_cap(): void {
+		$this->set_max_response_bytes( 100 );
+
+		$result = cap_response_data( [ str_repeat( 'z', 200 ), 'small' ] );
+
+		$this->assertSame( [], $result['data'] );
+		$this->assertSame( 0, $result['truncated']['returned'] );
+		$this->assertSame( 2, $result['truncated']['total'] );
+		$this->assertStringContainsString( 'single item is larger than the limit', $result['truncated']['hint'] );
+		$this->assertStringContainsString( '_fields', $result['truncated']['hint'] );
+		$this->assertStringNotContainsString( 'per_page', $result['truncated']['hint'] );
 	}
 
 	public function test_cap_response_data_drops_the_largest_object_fields(): void {

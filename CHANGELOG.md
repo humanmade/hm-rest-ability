@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Give a truncated list a concrete hint: ask for a `per_page` of at most the number of items returned and step through with `page`, or narrow each item with `_fields`. Truncated objects and strings keep the generic hint. In `inc/rest-api-abilities.php`.
+- Give a truncated list a concrete hint: if the route supports pagination, ask for a `per_page` of at most the number of items returned and step through with `page`, or narrow each item with `_fields`. When a single item is over the limit, the hint says so and points at `_fields`. Truncated objects and strings keep the generic hint. In `inc/rest-api-abilities.php`.
 
 ## [1.0.1] - 2026-10-29
 

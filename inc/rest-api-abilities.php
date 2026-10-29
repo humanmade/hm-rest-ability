@@ -711,10 +711,12 @@ function cap_response_data( $data ): array {
 
 		$truncated['returned'] = count( $kept );
 		$truncated['total']    = count( $data );
-		$truncated['hint']     = sprintf(
-			'Request per_page of %d or fewer and step through the list with page, or narrow each item with _fields.',
-			max( 1, count( $kept ) )
-		);
+		$truncated['hint']     = $kept
+			? sprintf(
+				'If the route supports pagination, request per_page of %d or fewer and step through the list with page. Otherwise, or as well, narrow each item with _fields.',
+				count( $kept )
+			)
+			: 'A single item is larger than the limit. Narrow each item with _fields.';
 
 		return [
 			'data'      => $kept,
