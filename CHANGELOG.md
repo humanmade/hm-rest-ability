@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Treat a `permission_callback` that returns `null` as a denial, as core does. Before, the permission check allowed the call, so the policy filter and the confirmation prompt ran for a call that core then refused. In `inc/rest-api-abilities.php`.
+- Name the param in front of a validation reason that doesn't mention it, such as core's generic "Invalid parameter.", so a client can tell which reason goes with which param. In `inc/rest-api-abilities.php`.
 
 ## [1.0.1] - 2026-10-29
 
