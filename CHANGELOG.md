@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Treat the client's Accept as the confirmation for a risky call. The confirmation form no longer has a "Yes, delete it" or "Yes, make this change" box, which some clients showed as a small checkbox next to Accept, so a user could press Accept with the box unticked and the call was refused. A decline, a cancel, a missing answer and an accept with `confirm: false` now each get their own message, so an agent can tell them apart. The last one also has its own error code, `rest_ability_confirmation_unticked`. In `inc/confirmation.php`.
+
 ## [1.0.1] - 2026-10-29
 
 ### Fixed

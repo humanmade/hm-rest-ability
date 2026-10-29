@@ -220,12 +220,12 @@ function handle( array $args, ?McpToolCallContext $context = null ) {
 /**
  * Builds the elicitation request that asks the user to confirm a call.
  *
+ * The form has no fields: the client's own Accept button is the confirmation.
+ *
  * @param array $args Tool arguments.
  * @return array
  */
 function confirmation_request( array $args ): array {
-	$is_delete = 'DELETE' === strtoupper( $args['method'] ?? '' );
-
 	return [
 		'method' => 'elicitation/create',
 		'params' => [
@@ -233,15 +233,7 @@ function confirmation_request( array $args ): array {
 			'message'         => confirmation_message( $args ),
 			'requestedSchema' => [
 				'type'       => 'object',
-				'properties' => [
-					'confirm' => [
-						'type'        => 'boolean',
-						'title'       => $is_delete ? 'Yes, delete it' : 'Yes, make this change',
-						'description' => 'Tick to confirm. This changes the live site.',
-						'default'     => false,
-					],
-				],
-				'required'   => [ 'confirm' ],
+				'properties' => (object) [],
 			],
 		],
 	];
@@ -329,13 +321,27 @@ function check_confirmation( McpToolCallContext $context, array $args ): bool|WP
 	}
 
 	$response = $context->input_responses()->{INPUT_KEY} ?? null;
-	$accepted = 'accept' === ( $response->action ?? null ) && true === ( $response->content->confirm ?? null );
 
-	if ( ! $accepted ) {
-		return new WP_Error( 'rest_ability_not_confirmed', 'The user did not confirm. Nothing was changed.' );
+	switch ( $response->action ?? null ) {
+		case 'accept':
+			// A form with a confirm box, answered with the box unticked.
+			if ( false === ( $response->content->confirm ?? null ) ) {
+				return new WP_Error(
+					'rest_ability_confirmation_unticked',
+					'Accepted without ticking the confirmation box. Nothing was changed. Call the tool again to ask the user.'
+				);
+			}
+			return true;
+		case 'decline':
+			return new WP_Error( 'rest_ability_not_confirmed', 'The user declined. Nothing was changed.' );
+		case 'cancel':
+			return new WP_Error( 'rest_ability_not_confirmed', 'The user closed the confirmation without choosing. Nothing was changed.' );
+		default:
+			return new WP_Error(
+				'rest_ability_not_confirmed',
+				'No answer to the confirmation came back. Nothing was changed. Call the tool again to ask the user.'
+			);
 	}
-
-	return true;
 }
 
 /**

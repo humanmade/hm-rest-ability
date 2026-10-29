@@ -123,11 +123,16 @@ class ConfirmationTest extends TestCase {
 		return $this->context( Schemas::V2026_07_28, [ 'elicitation' => [ 'form' => (object) [] ] ], $responses, $state );
 	}
 
-	private function accept( bool $confirm = true ): array {
+	/**
+	 * Builds an accept answer.
+	 *
+	 * @param bool|null $confirm Value of a confirm box, or null for the empty form.
+	 */
+	private function accept( ?bool $confirm = null ): array {
 		return [
 			'confirm' => [
 				'action'  => 'accept',
-				'content' => [ 'confirm' => $confirm ],
+				'content' => null === $confirm ? (object) [] : [ 'confirm' => $confirm ],
 			],
 		];
 	}
@@ -166,6 +171,7 @@ class ConfirmationTest extends TestCase {
 		$this->assertSame( 'elicitation/create', $requests['confirm']['method'] );
 		$this->assertSame( 'form', $requests['confirm']['params']['mode'] );
 		$this->assertStringContainsString( 'Hello & welcome', $requests['confirm']['params']['message'] );
+		$this->assertSame( '{"type":"object","properties":{}}', wp_json_encode( $requests['confirm']['params']['requestedSchema'] ) );
 		$this->assertTrue( verify_state( $result->request_state(), self::ARGS ) );
 	}
 
@@ -198,24 +204,52 @@ class ConfirmationTest extends TestCase {
 		$this->assertSame( [ 'DELETE' ], $this->writes() );
 	}
 
+	public function test_handle_deletes_when_the_accept_has_no_content(): void {
+		$responses = [ 'confirm' => [ 'action' => 'accept' ] ];
+		$result    = handle( self::ARGS, $this->elicitation_context( $responses, $this->valid_state() ) );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( [ 'DELETE' ], $this->writes() );
+	}
+
+	public function test_handle_deletes_when_the_user_accepted_with_the_box_ticked(): void {
+		$result = handle( self::ARGS, $this->elicitation_context( $this->accept( true ), $this->valid_state() ) );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( [ 'DELETE' ], $this->writes() );
+	}
+
+	public function test_handle_refuses_when_the_user_accepted_with_the_box_unticked(): void {
+		$result = handle( self::ARGS, $this->elicitation_context( $this->accept( false ), $this->valid_state() ) );
+
+		$this->assert_refused( $result );
+		$this->assertSame( 'rest_ability_confirmation_unticked', $result->get_error_code() );
+		$this->assertSame( 'Accepted without ticking the confirmation box. Nothing was changed. Call the tool again to ask the user.', $result->get_error_message() );
+	}
+
 	public function test_handle_refuses_when_the_user_declined(): void {
 		$responses = [ 'confirm' => [ 'action' => 'decline' ] ];
+		$result    = handle( self::ARGS, $this->elicitation_context( $responses, $this->valid_state() ) );
 
-		$this->assert_refused( handle( self::ARGS, $this->elicitation_context( $responses, $this->valid_state() ) ) );
+		$this->assert_refused( $result );
+		$this->assertSame( 'rest_ability_not_confirmed', $result->get_error_code() );
+		$this->assertSame( 'The user declined. Nothing was changed.', $result->get_error_message() );
 	}
 
 	public function test_handle_refuses_when_the_user_cancelled(): void {
 		$responses = [ 'confirm' => [ 'action' => 'cancel' ] ];
+		$result    = handle( self::ARGS, $this->elicitation_context( $responses, $this->valid_state() ) );
 
-		$this->assert_refused( handle( self::ARGS, $this->elicitation_context( $responses, $this->valid_state() ) ) );
-	}
-
-	public function test_handle_refuses_when_the_user_accepted_without_confirming(): void {
-		$this->assert_refused( handle( self::ARGS, $this->elicitation_context( $this->accept( false ), $this->valid_state() ) ) );
+		$this->assert_refused( $result );
+		$this->assertSame( 'rest_ability_not_confirmed', $result->get_error_code() );
+		$this->assertSame( 'The user closed the confirmation without choosing. Nothing was changed.', $result->get_error_message() );
 	}
 
 	public function test_handle_refuses_when_the_answer_is_missing(): void {
-		$this->assert_refused( handle( self::ARGS, $this->elicitation_context( [], $this->valid_state() ) ) );
+		$result = handle( self::ARGS, $this->elicitation_context( [], $this->valid_state() ) );
+
+		$this->assert_refused( $result );
+		$this->assertStringStartsWith( 'No answer to the confirmation came back.', $result->get_error_message() );
 	}
 
 	public function test_handle_refuses_state_signed_for_another_route(): void {
@@ -279,7 +313,6 @@ class ConfirmationTest extends TestCase {
 		$this->assertStringContainsString( 'Change /wp/v2/settings (POST) on My Site?', $message );
 		$this->assertStringContainsString( 'This changes site settings or who has access.', $message );
 		$this->assertStringContainsString( '{"title":"New site title"}', $message );
-		$this->assertSame( 'Yes, make this change', $request['params']['requestedSchema']['properties']['confirm']['title'] );
 		$this->assertSame( [], array_filter( $this->requests, fn( $request ) => 'GET' === $request->get_method() ) );
 		$this->assertTrue( verify_state( $result->request_state(), self::SETTINGS_ARGS ) );
 	}
@@ -297,12 +330,6 @@ class ConfirmationTest extends TestCase {
 		$state     = $this->valid_state( self::SETTINGS_ARGS );
 
 		$this->assert_refused( handle( self::SETTINGS_ARGS, $this->elicitation_context( $responses, $state ) ) );
-	}
-
-	public function test_handle_uses_the_delete_wording_for_a_delete(): void {
-		$request = handle( self::ARGS, $this->elicitation_context() )->input_requests()['confirm'];
-
-		$this->assertSame( 'Yes, delete it', $request['params']['requestedSchema']['properties']['confirm']['title'] );
 	}
 
 	public function test_refusals_use_the_documented_error_codes(): void {
