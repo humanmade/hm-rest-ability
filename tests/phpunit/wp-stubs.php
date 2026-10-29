@@ -259,13 +259,13 @@ if ( ! class_exists( 'WP_REST_Server' ) ) {
 			return $this->routes;
 		}
 
-		private ?array $response_data = null;
+		private $response_data = null;
 
-		public function set_response_data( array $data ): void {
+		public function set_response_data( $data ): void {
 			$this->response_data = $data;
 		}
 
-		public function response_to_data( WP_REST_Response $response, bool $embed ): array {
+		public function response_to_data( WP_REST_Response $response, bool $embed ) {
 			return $this->response_data ?? [ 'status' => $response->get_status() ];
 		}
 

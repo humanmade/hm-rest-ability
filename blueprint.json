@@ -54,6 +54,11 @@
 			"data": "<?php\n/**\n * Test-only: a custom post type on its own REST namespace, so the e2e suite\n * can prove URL lookup covers more than core's post and page routes.\n */\n\nadd_action( 'init', function () {\n\tregister_post_type( 'case_study', [\n\t\t'label'          => 'Case studies',\n\t\t'public'         => true,\n\t\t'show_in_rest'   => true,\n\t\t'rest_base'      => 'case-studies',\n\t\t'rest_namespace' => 'acme/v1',\n\t\t'rewrite'        => [ 'slug' => 'work' ],\n\t\t'supports'       => [ 'title', 'editor' ],\n\t] );\n} );\n"
 		},
 		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/test-object-route.php",
+			"data": "<?php\n/**\n * Test-only: a REST route whose callback returns a WP_Post object, which\n * response_to_data() passes through unchanged.\n */\n\nadd_action( 'rest_api_init', function () {\n\tregister_rest_route( 'object-test/v1', '/post', [\n\t\t'methods'             => 'GET',\n\t\t'callback'            => function () {\n\t\t\treturn new WP_REST_Response( new WP_Post( (object) [ 'ID' => 1, 'post_title' => 'Object fixture' ] ) );\n\t\t},\n\t\t'permission_callback' => '__return_true',\n\t] );\n} );\n"
+		},
+		{
 			"step": "activatePlugin",
 			"pluginPath": "hm-rest-ability/hm-rest-ability.php",
 			"pluginName": "HM REST Ability"

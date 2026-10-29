@@ -531,6 +531,50 @@ class RestApiAbilitiesTest extends TestCase {
 	}
 
 	/**
+	 * Runs execute() against a response whose data is the given value.
+	 *
+	 * @param mixed $data Value `response_to_data()` returns.
+	 * @return array
+	 */
+	private function execute_with_response_data( $data ): array {
+		Functions\when( 'rest_do_request' )->justReturn( new WP_REST_Response( null, 200 ) );
+
+		$server = new WP_REST_Server();
+		$server->set_response_data( $data );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		return execute( [ 'method' => 'GET', 'route' => '/wp/v2/posts/1' ] );
+	}
+
+	public function test_execute_converts_plain_object_data_to_an_array(): void {
+		$plain  = new class() {
+			public int $ID         = 7;
+			public string $post_title = 'Hello';
+		};
+		$result = $this->execute_with_response_data( $plain );
+
+		$this->assertSame( [ 'ID' => 7, 'post_title' => 'Hello' ], $result['data'] );
+	}
+
+	public function test_execute_leaves_stdclass_data_alone(): void {
+		$data   = (object) [ 'ID' => 7 ];
+		$result = $this->execute_with_response_data( $data );
+
+		$this->assertSame( $data, $result['data'] );
+	}
+
+	public function test_execute_leaves_json_serializable_data_alone(): void {
+		$data   = new class() implements \JsonSerializable {
+			public function jsonSerialize(): array {
+				return [ 'ID' => 7 ];
+			}
+		};
+		$result = $this->execute_with_response_data( $data );
+
+		$this->assertSame( $data, $result['data'] );
+	}
+
+	/**
 	 * Overrides the response size cap for one test, leaving every other
 	 * filtered value passing straight through.
 	 */

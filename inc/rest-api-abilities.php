@@ -10,6 +10,8 @@
 
 namespace HM\RestApiAbilities;
 
+use JsonSerializable;
+use stdClass;
 use WP_Error;
 use WP_REST_Request;
 
@@ -409,7 +411,14 @@ function execute( array $input ): array {
 		$response = rest_filter_response_fields( $response, rest_get_server(), $request );
 	}
 
-	$data   = condense_routes( rest_get_server()->response_to_data( $response, false ) );
+	$data = rest_get_server()->response_to_data( $response, false );
+
+	// Core's output validation accepts only arrays, stdClass and JsonSerializable objects.
+	if ( is_object( $data ) && ! $data instanceof stdClass && ! $data instanceof JsonSerializable ) {
+		$data = json_decode( wp_json_encode( $data ), true );
+	}
+
+	$data   = condense_routes( $data );
 	$capped = is_route_index( $data ) ? cap_route_index( $data ) : cap_response_data( $data );
 
 	$result = [
