@@ -50,5 +50,5 @@ function bootstrap(): void {
 if ( did_action( 'after_setup_theme' ) ) {
 	bootstrap();
 } else {
-	add_action( 'after_setup_theme', __NAMESPACE__ . '\\bootstrap' );
+	add_action( 'after_setup_theme', __NAMESPACE__ . '\\bootstrap', PHP_INT_MAX );
 }

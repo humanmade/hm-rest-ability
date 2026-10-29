@@ -17,6 +17,13 @@ use Brain\Monkey\Functions;
 class BootstrapTest extends TestCase {
 
 	/**
+	 * Priority each hook was added with, keyed by hook name.
+	 *
+	 * @var array<string, int>
+	 */
+	private array $priorities = [];
+
+	/**
 	 * Loads the main plugin file and returns the hooks it and its modules add,
 	 * as hook names.
 	 *
@@ -28,8 +35,9 @@ class BootstrapTest extends TestCase {
 	 */
 	private function run_bootstrap( bool $theme_loaded = false ): array {
 		$hooks = [];
-		$add   = static function ( string $hook ) use ( &$hooks ): bool {
-			$hooks[] = $hook;
+		$add   = function ( string $hook, $callback = null, int $priority = 10 ) use ( &$hooks ): bool {
+			$hooks[]                  = $hook;
+			$this->priorities[ $hook ] = $priority;
 
 			return true;
 		};
@@ -53,6 +61,7 @@ class BootstrapTest extends TestCase {
 		Functions\when( 'wp_supports_ai' )->justReturn( true );
 
 		$this->assertContains( 'after_setup_theme', $this->run_bootstrap() );
+		$this->assertSame( PHP_INT_MAX, $this->priorities['after_setup_theme'] );
 	}
 
 	public function test_bootstrap_runs_straight_away_when_the_theme_has_already_loaded(): void {
