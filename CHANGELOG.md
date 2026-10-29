@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-29
+
+### Fixed
+
+- Validate and sanitize a call's params before running the endpoint's own permission check, as core's `WP_REST_Server::dispatch()` does. A permission check that reads a sanitized param saw the raw value instead, so `GET /wp/v2/plugins/<dir>/<file>` failed with "Plugin not found." and the tools could not read, activate, deactivate or delete a single plugin. Params that fail validation now return core's `rest_invalid_param` or `rest_missing_callback_param` error from the permission check. In `inc/rest-api-abilities.php`.
+
 ## [1.0.0] - 2026-10-05
 
 ### Added
@@ -112,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rest-api/call` ability for dispatching internal WordPress REST API
   requests from MCP clients.
 
-[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.6.0...v1.0.0
 [0.6.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.4.0...v0.5.0
