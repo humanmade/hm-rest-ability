@@ -110,6 +110,21 @@ test.describe( 'MCP protocol', () => {
 		}
 	} );
 
+	test( 'advertises an output schema for the REST API tools', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+		const tools = await client.listTools();
+
+		for ( const name of [ 'rest-api-read', 'rest-api-write', 'rest-api-delete' ] ) {
+			const tool = tools.find( ( t ) => t.name === name );
+
+			expect( tool.outputSchema.type ).toBe( 'object' );
+			expect( Object.keys( tool.outputSchema.properties ) ).toEqual(
+				expect.arrayContaining( [ 'status', 'headers', 'data', 'error' ] )
+			);
+			expect( tool.outputSchema.required ).toBeUndefined();
+		}
+	} );
+
 	test( 'advertises the media upload tool schema', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 		const tool = ( await client.listTools() ).find( ( t ) => t.name === 'media-upload' );

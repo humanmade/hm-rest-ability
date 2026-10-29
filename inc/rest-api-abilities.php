@@ -116,6 +116,7 @@ function register_ability(): void {
 				'description'         => $tool['description'],
 				'category'            => 'rest-api',
 				'input_schema'        => input_schema( $tool['methods'] ),
+				'output_schema'       => output_schema(),
 				'permission_callback' => __NAMESPACE__ . '\\check_permission',
 				'execute_callback'    => __NAMESPACE__ . '\\execute',
 				'meta'                => [
@@ -156,6 +157,52 @@ function input_schema( array $methods ): array {
 			],
 		],
 		'required'   => [ 'method', 'route' ],
+	];
+}
+
+/**
+ * Returns the output schema shared by the REST API tools.
+ *
+ * Every property is optional: a response carries `status`, `headers` and
+ * `data`, a failed lookup carries `error`, and an unknown route also carries
+ * `suggestions`.
+ *
+ * @return array
+ */
+function output_schema(): array {
+	return [
+		'type'                 => 'object',
+		'properties'           => [
+			'status'      => [
+				'type'        => 'integer',
+				'description' => 'HTTP status code of the REST API response.',
+			],
+			'headers'     => [
+				'type'        => [ 'object', 'array' ],
+				'description' => 'Response headers, keyed by header name. An empty list when there are none.',
+			],
+			'data'        => [
+				'type'        => [ 'object', 'array', 'string', 'number', 'integer', 'boolean', 'null' ],
+				'description' => 'Response body, as JSON. Its shape depends on the route.',
+			],
+			'truncated'   => [
+				'type'        => 'object',
+				'description' => 'Present when the response was trimmed to fit the size cap. Says why and how to narrow the request.',
+			],
+			'error'       => [
+				'type'        => 'string',
+				'description' => 'What went wrong, when the call could not be made.',
+			],
+			'suggestions' => [
+				'type'        => 'array',
+				'description' => 'Closest registered routes, when the route does not exist.',
+			],
+			'guidance'    => [
+				'type'        => 'string',
+				'description' => 'Advice on calling a route that changes site settings or access, or that deletes data. Returned by OPTIONS.',
+			],
+		],
+		'additionalProperties' => true,
 	];
 }
 

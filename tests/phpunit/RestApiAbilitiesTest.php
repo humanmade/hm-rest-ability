@@ -6,6 +6,7 @@
 namespace HM\RestAbility\Tests;
 
 use Brain\Monkey\Functions;
+use WP\MCP\Domain\Utils\SchemaTransformer;
 use WP_Error;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -19,6 +20,7 @@ use function HM\RestApiAbilities\check_permission;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\filter_mcp_server_config;
 use function HM\RestApiAbilities\max_response_bytes;
+use function HM\RestApiAbilities\output_schema;
 use function HM\RestApiAbilities\register_ability;
 
 class RestApiAbilitiesTest extends TestCase {
@@ -113,6 +115,35 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertStringContainsString( 'Confirm with the user before calling', $registered['rest-api/write']['description'] );
 		$this->assertStringContainsString( 'Confirm with the user before calling', $registered['rest-api/delete']['description'] );
 		$this->assertStringNotContainsString( 'Confirm with the user before calling', $registered['rest-api/read']['description'] );
+	}
+
+	public function test_register_ability_shares_one_output_schema_across_the_tools(): void {
+		foreach ( $this->register_and_capture() as $args ) {
+			$this->assertSame( output_schema(), $args['output_schema'] );
+		}
+	}
+
+	public function test_output_schema_is_an_object_with_every_property_optional_and_described(): void {
+		$schema = output_schema();
+
+		$this->assertSame( 'object', $schema['type'] );
+		$this->assertArrayNotHasKey( 'required', $schema );
+		$this->assertTrue( $schema['additionalProperties'] );
+		$this->assertSame(
+			[ 'status', 'headers', 'data', 'truncated', 'error', 'suggestions', 'guidance' ],
+			array_keys( $schema['properties'] )
+		);
+
+		foreach ( $schema['properties'] as $property ) {
+			$this->assertNotSame( '', $property['description'] );
+		}
+	}
+
+	public function test_output_schema_is_not_wrapped_by_the_adapter(): void {
+		$transformed = SchemaTransformer::transform_to_object_schema( output_schema(), 'result' );
+
+		$this->assertFalse( $transformed['was_transformed'] );
+		$this->assertSame( output_schema(), $transformed['schema'] );
 	}
 
 	public function test_register_ability_shares_permission_and_execute_callbacks(): void {

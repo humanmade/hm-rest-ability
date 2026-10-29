@@ -22,6 +22,7 @@ use function HM\Confirmation\hide_ability_from_mcp;
 use function HM\Confirmation\needs_confirmation;
 use function HM\Confirmation\sign_state;
 use function HM\Confirmation\verify_state;
+use function HM\RestApiAbilities\output_schema;
 
 class ConfirmationTest extends TestCase {
 
@@ -421,6 +422,19 @@ class ConfirmationTest extends TestCase {
 		$this->assertCount( 2, $config['tools'] );
 		$this->assertSame( 'rest-api-write', $config['tools'][0]->get_name() );
 		$this->assertSame( 'rest-api-delete', $config['tools'][1]->get_name() );
+	}
+
+	public function test_the_direct_tools_carry_the_shared_output_schema(): void {
+		$config = filter_mcp_server_config( [] );
+
+		foreach ( $config['tools'] as $tool ) {
+			$record = $tool->get_protocol_record( Schemas::create()->forVersion( Schemas::V2026_07_28 ) );
+
+			$output = json_decode( wp_json_encode( $record->getOutputSchema() ), true );
+
+			$this->assertSame( 'object', $output['type'] );
+			$this->assertSame( array_keys( output_schema()['properties'] ), array_keys( $output['properties'] ) );
+		}
 	}
 
 	public function test_hide_ability_from_mcp_hides_the_write_and_delete_abilities_only(): void {
