@@ -309,6 +309,26 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertFalse( $result );
 	}
 
+	public function test_check_permission_denies_when_the_permission_callback_returns_null(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/posts' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => static fn () => null,
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [ 'method' => 'GET', 'route' => '/wp/v2/posts' ] );
+
+		$this->assertFalse( $result );
+	}
+
 	public function test_check_permission_allows_return_true_shortcut(): void {
 		Functions\when( 'is_user_logged_in' )->justReturn( true );
 		Functions\when( 'apply_filters' )->alias( static fn ( $tag, $value ) => $value );
@@ -419,6 +439,40 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'Invalid parameter(s): per_page. per_page is not of type integer.', $result->get_error_message() );
 		$this->assertSame( [ 'per_page' => 'per_page is not of type integer.' ], $result->get_error_data()['params'] );
 		$this->assertFalse( $called );
+	}
+
+	public function test_check_permission_names_the_param_for_a_generic_reason(): void {
+		Functions\when( 'is_user_logged_in' )->justReturn( true );
+
+		$server = new WP_REST_Server();
+		$server->set_routes( [
+			'/wp/v2/things' => [
+				[
+					'methods'             => [ 'GET' => true ],
+					'permission_callback' => '__return_true',
+					'args'                => [
+						'id'     => [
+							'validate_callback' => static fn () => false,
+						],
+						'status' => [
+							'validate_callback' => static fn () => false,
+						],
+					],
+				],
+			],
+		] );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = check_permission( [
+			'method' => 'GET',
+			'route'  => '/wp/v2/things',
+			'params' => [ 'id' => 'x', 'status' => 'y' ],
+		] );
+
+		$this->assertSame(
+			'Invalid parameter(s): id, status. id: Invalid parameter. status: Invalid parameter.',
+			$result->get_error_message()
+		);
 	}
 
 	public function test_check_permission_policy_filter_never_runs_after_a_capability_denial(): void {

@@ -100,6 +100,7 @@ test.describe( 'MCP confirmation', () => {
 		expect( asked.result.requestState ).toBeTruthy();
 		expect( asked.result.inputRequests.confirm.method ).toBe( 'elicitation/create' );
 		expect( asked.result.inputRequests.confirm.params.message ).toContain( 'Confirm before deleting' );
+		expect( asked.result.inputRequests.confirm.params.requestedSchema ).toEqual( { type: 'object', properties: {} } );
 		expect( await postStatus( client, id ) ).toBe( 'draft' );
 	} );
 
@@ -109,7 +110,7 @@ test.describe( 'MCP confirmation', () => {
 
 		const asked = await client.callTool( 'rest-api-delete', deleteArgs( id ) );
 		const accepted = await client.callTool( 'rest-api-delete', deleteArgs( id ), {
-			inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+			inputResponses: { confirm: { action: 'accept', content: {} } },
 			requestState: asked.result.requestState,
 		} );
 
@@ -197,7 +198,7 @@ test.describe( 'MCP confirmation', () => {
 			expect( await siteTagline( client ) ).toBe( original );
 
 			const accepted = await client.callTool( 'rest-api-write', args, {
-				inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+				inputResponses: { confirm: { action: 'accept', content: {} } },
 				requestState: asked.result.requestState,
 			} );
 
