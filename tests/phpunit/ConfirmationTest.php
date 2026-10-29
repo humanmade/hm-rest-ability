@@ -204,6 +204,14 @@ class ConfirmationTest extends TestCase {
 		$this->assertSame( [ 'DELETE' ], $this->writes() );
 	}
 
+	public function test_handle_deletes_when_the_accept_has_no_content(): void {
+		$responses = [ 'confirm' => [ 'action' => 'accept' ] ];
+		$result    = handle( self::ARGS, $this->elicitation_context( $responses, $this->valid_state() ) );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( [ 'DELETE' ], $this->writes() );
+	}
+
 	public function test_handle_deletes_when_the_user_accepted_with_the_box_ticked(): void {
 		$result = handle( self::ARGS, $this->elicitation_context( $this->accept( true ), $this->valid_state() ) );
 
