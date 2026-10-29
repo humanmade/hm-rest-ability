@@ -77,7 +77,7 @@ and the WordPress Abilities API.
 - PHP 8.2+, the oldest PHP version that still gets security fixes
 - The [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin, version 0.7.0 or later (`wordpress/mcp-adapter` on Packagist), declared as a dependency via the `Requires Plugins` header. WordPress can't express a version in that header, so check the version yourself. Composer installs of this plugin now pull `wordpress/mcp-adapter ^0.7.0`.
 
-The plugin turns itself off when the site disables AI, through the `WP_AI_SUPPORT` constant or the `wp_supports_ai` filter (WordPress 7.0+). It then registers no abilities, tools or filters. The check runs on `after_setup_theme`, so filters added by plugins and themes count. It runs before the REST request is authenticated, so a filter that depends on the current user won't see them.
+The plugin turns itself off when the site disables AI, through the `WP_AI_SUPPORT` constant or the `wp_supports_ai` filter (WordPress 7.0+). It then registers no abilities, tools or filters. The check runs on `after_setup_theme`, so filters added by plugins and themes count. It runs before the REST request is authenticated, so a filter that depends on the current user won't see who is calling.
 
 ## Installation
 
