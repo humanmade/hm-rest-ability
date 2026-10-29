@@ -329,6 +329,17 @@ test.describe( 'MCP discovery', () => {
 		expect( plugin.data.status ).toBe( 'active' );
 	} );
 
+	test( 'reads a route whose callback returns a plain object', async ( { request } ) => {
+		// The test mu-plugin's route returns a WP_Post, which core's output validation would reject as it stands.
+		const client = await McpClient.connect( request );
+
+		const result = await rest( client, 'GET', '/object-test/v1/post' );
+
+		expect( result.status ).toBe( 200 );
+		expect( result.data.ID ).toBe( 1 );
+		expect( result.data.post_title ).toBe( 'Object fixture' );
+	} );
+
 	test( 'explains where the global styles id and stylesheet come from', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 

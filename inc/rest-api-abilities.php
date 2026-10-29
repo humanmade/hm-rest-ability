@@ -10,6 +10,7 @@
 
 namespace HM\RestApiAbilities;
 
+use stdClass;
 use WP_Error;
 use WP_REST_Request;
 
@@ -116,6 +117,7 @@ function register_ability(): void {
 				'description'         => $tool['description'],
 				'category'            => 'rest-api',
 				'input_schema'        => input_schema( $tool['methods'] ),
+				'output_schema'       => output_schema(),
 				'permission_callback' => __NAMESPACE__ . '\\check_permission',
 				'execute_callback'    => __NAMESPACE__ . '\\execute',
 				'meta'                => [
@@ -156,6 +158,52 @@ function input_schema( array $methods ): array {
 			],
 		],
 		'required'   => [ 'method', 'route' ],
+	];
+}
+
+/**
+ * Returns the output schema shared by the REST API tools.
+ *
+ * Every property is optional: a response carries `status`, `headers` and
+ * `data`, a failed lookup carries `error`, and an unknown route also carries
+ * `suggestions`.
+ *
+ * @return array
+ */
+function output_schema(): array {
+	return [
+		'type'                 => 'object',
+		'properties'           => [
+			'status'      => [
+				'type'        => 'integer',
+				'description' => 'HTTP status code of the REST API response.',
+			],
+			'headers'     => [
+				'type'        => [ 'object', 'array' ],
+				'description' => 'Response headers, keyed by header name. An empty list when there are none.',
+			],
+			'data'        => [
+				'type'        => [ 'object', 'array', 'string', 'number', 'integer', 'boolean', 'null' ],
+				'description' => 'Response body, as JSON. Its shape depends on the route.',
+			],
+			'truncated'   => [
+				'type'        => 'object',
+				'description' => 'Present when the response was trimmed to fit the size cap. Says why and how to narrow the request.',
+			],
+			'error'       => [
+				'type'        => 'string',
+				'description' => 'What went wrong, when the call could not be made.',
+			],
+			'suggestions' => [
+				'type'        => 'array',
+				'description' => 'Closest registered routes, when the route does not exist.',
+			],
+			'guidance'    => [
+				'type'        => 'string',
+				'description' => 'Advice on calling a route that changes site settings or access, or that deletes data. Returned by OPTIONS.',
+			],
+		],
+		'additionalProperties' => true,
 	];
 }
 
@@ -367,7 +415,14 @@ function execute( array $input ): array {
 		$response = rest_filter_response_fields( $response, rest_get_server(), $request );
 	}
 
-	$data   = condense_routes( rest_get_server()->response_to_data( $response, false ) );
+	$data = rest_get_server()->response_to_data( $response, false );
+
+	// Core's output validation accepts only arrays and stdClass objects.
+	if ( is_object( $data ) && ! $data instanceof stdClass ) {
+		$data = json_decode( wp_json_encode( $data ), true );
+	}
+
+	$data   = condense_routes( $data );
 	$capped = is_route_index( $data ) ? cap_route_index( $data ) : cap_response_data( $data );
 
 	$result = [
@@ -660,6 +715,12 @@ function cap_response_data( $data ): array {
 
 		$truncated['returned'] = count( $kept );
 		$truncated['total']    = count( $data );
+		$truncated['hint']     = $kept
+			? sprintf(
+				'If the route supports pagination, request per_page of %d or fewer and step through the list with page. Otherwise, or as well, narrow each item with _fields.',
+				count( $kept )
+			)
+			: 'A single item is larger than the limit. Narrow each item with _fields.';
 
 		return [
 			'data'      => $kept,

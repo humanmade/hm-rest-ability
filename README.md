@@ -77,6 +77,8 @@ and the WordPress Abilities API.
 - PHP 8.2+, the oldest PHP version that still gets security fixes
 - The [MCP Adapter](https://github.com/WordPress/mcp-adapter) plugin, version 0.7.0 or later (`wordpress/mcp-adapter` on Packagist), declared as a dependency via the `Requires Plugins` header. WordPress can't express a version in that header, so check the version yourself. Composer installs of this plugin now pull `wordpress/mcp-adapter ^0.7.0`.
 
+The plugin turns itself off when the site disables AI, through the `WP_AI_SUPPORT` constant or the `wp_supports_ai` filter (WordPress 7.0+). It then registers no abilities, tools or filters. The check runs on `after_setup_theme`, so filters added by plugins and themes count. It runs before the REST request is authenticated, so a filter that depends on the current user won't see who is calling.
+
 ## Installation
 
 Composer (recommended):
@@ -105,7 +107,8 @@ Then activate both **MCP Adapter** and **HM REST Ability**.
   return `''` to suppress it. Two modules hook it themselves:
   `inc/status-field-guidance.php` flags a publishable `status` field, and
   `inc/content-field-guidance.php` flags a block-markup `content` field.
-  Remove either on its own, for example
+  Remove either on its own, from `init` or later because the plugin adds
+  them on `after_setup_theme`, for example
   `remove_filter( 'hm_rest_ability_route_guidance', 'HM\StatusFieldGuidance\add_guidance' )`,
   or add your own hooked callback alongside them for anything else worth
   flagging.

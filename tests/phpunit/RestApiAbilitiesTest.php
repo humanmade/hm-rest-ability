@@ -6,6 +6,7 @@
 namespace HM\RestAbility\Tests;
 
 use Brain\Monkey\Functions;
+use WP\MCP\Domain\Utils\SchemaTransformer;
 use WP_Error;
 use WP_REST_Response;
 use WP_REST_Server;
@@ -19,6 +20,7 @@ use function HM\RestApiAbilities\check_permission;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\filter_mcp_server_config;
 use function HM\RestApiAbilities\max_response_bytes;
+use function HM\RestApiAbilities\output_schema;
 use function HM\RestApiAbilities\register_ability;
 
 class RestApiAbilitiesTest extends TestCase {
@@ -113,6 +115,35 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertStringContainsString( 'Confirm with the user before calling', $registered['rest-api/write']['description'] );
 		$this->assertStringContainsString( 'Confirm with the user before calling', $registered['rest-api/delete']['description'] );
 		$this->assertStringNotContainsString( 'Confirm with the user before calling', $registered['rest-api/read']['description'] );
+	}
+
+	public function test_register_ability_shares_one_output_schema_across_the_tools(): void {
+		foreach ( $this->register_and_capture() as $args ) {
+			$this->assertSame( output_schema(), $args['output_schema'] );
+		}
+	}
+
+	public function test_output_schema_is_an_object_with_every_property_optional_and_described(): void {
+		$schema = output_schema();
+
+		$this->assertSame( 'object', $schema['type'] );
+		$this->assertArrayNotHasKey( 'required', $schema );
+		$this->assertTrue( $schema['additionalProperties'] );
+		$this->assertSame(
+			[ 'status', 'headers', 'data', 'truncated', 'error', 'suggestions', 'guidance' ],
+			array_keys( $schema['properties'] )
+		);
+
+		foreach ( $schema['properties'] as $property ) {
+			$this->assertNotSame( '', $property['description'] );
+		}
+	}
+
+	public function test_output_schema_is_not_wrapped_by_the_adapter(): void {
+		$transformed = SchemaTransformer::transform_to_object_schema( output_schema(), 'result' );
+
+		$this->assertFalse( $transformed['was_transformed'] );
+		$this->assertSame( output_schema(), $transformed['schema'] );
 	}
 
 	public function test_register_ability_shares_permission_and_execute_callbacks(): void {
@@ -554,6 +585,50 @@ class RestApiAbilitiesTest extends TestCase {
 	}
 
 	/**
+	 * Runs execute() against a response whose data is the given value.
+	 *
+	 * @param mixed $data Value `response_to_data()` returns.
+	 * @return array
+	 */
+	private function execute_with_response_data( $data ): array {
+		Functions\when( 'rest_do_request' )->justReturn( new WP_REST_Response( null, 200 ) );
+
+		$server = new WP_REST_Server();
+		$server->set_response_data( $data );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		return execute( [ 'method' => 'GET', 'route' => '/wp/v2/posts/1' ] );
+	}
+
+	public function test_execute_converts_plain_object_data_to_an_array(): void {
+		$plain  = new class() {
+			public int $ID         = 7;
+			public string $post_title = 'Hello';
+		};
+		$result = $this->execute_with_response_data( $plain );
+
+		$this->assertSame( [ 'ID' => 7, 'post_title' => 'Hello' ], $result['data'] );
+	}
+
+	public function test_execute_leaves_stdclass_data_alone(): void {
+		$data   = (object) [ 'ID' => 7 ];
+		$result = $this->execute_with_response_data( $data );
+
+		$this->assertSame( $data, $result['data'] );
+	}
+
+	public function test_execute_converts_json_serializable_data_to_what_it_serializes_to(): void {
+		$data   = new class() implements \JsonSerializable {
+			public function jsonSerialize(): string {
+				return 'serialized';
+			}
+		};
+		$result = $this->execute_with_response_data( $data );
+
+		$this->assertSame( 'serialized', $result['data'] );
+	}
+
+	/**
 	 * Overrides the response size cap for one test, leaving every other
 	 * filtered value passing straight through.
 	 */
@@ -602,6 +677,26 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
 		$this->assertSame( count( $result['data'] ), $result['truncated']['returned'] );
 		$this->assertSame( 50, $result['truncated']['total'] );
+		$this->assertStringContainsString(
+			sprintf( 'per_page of %d or fewer', $result['truncated']['returned'] ),
+			$result['truncated']['hint']
+		);
+		$this->assertStringContainsString( 'If the route supports pagination', $result['truncated']['hint'] );
+		$this->assertStringContainsString( 'page', $result['truncated']['hint'] );
+		$this->assertStringContainsString( '_fields', $result['truncated']['hint'] );
+	}
+
+	public function test_cap_response_data_says_so_when_a_single_list_item_is_over_the_cap(): void {
+		$this->set_max_response_bytes( 100 );
+
+		$result = cap_response_data( [ str_repeat( 'z', 200 ), 'small' ] );
+
+		$this->assertSame( [], $result['data'] );
+		$this->assertSame( 0, $result['truncated']['returned'] );
+		$this->assertSame( 2, $result['truncated']['total'] );
+		$this->assertStringContainsString( 'single item is larger than the limit', $result['truncated']['hint'] );
+		$this->assertStringContainsString( '_fields', $result['truncated']['hint'] );
+		$this->assertStringNotContainsString( 'per_page', $result['truncated']['hint'] );
 	}
 
 	public function test_cap_response_data_drops_the_largest_object_fields(): void {
@@ -615,6 +710,7 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$this->assertSame( [ 'name' => 'Test site' ], $result['data'] );
 		$this->assertArrayHasKey( 'routes', $result['truncated']['omitted_fields'] );
+		$this->assertSame( 'Narrow the response with _fields, per_page, or a more specific route.', $result['truncated']['hint'] );
 	}
 
 	public function test_execute_applies_fields_when_requested(): void {

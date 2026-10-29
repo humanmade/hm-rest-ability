@@ -24,6 +24,7 @@ use WP_REST_Request;
 
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\input_schema;
+use function HM\RestApiAbilities\output_schema;
 use function HM\RestApiAbilities\tool_definitions;
 use function HM\RouteRisk\classify_route;
 
@@ -120,13 +121,14 @@ function build_tool( string $ability_name ): McpTool|WP_Error {
 
 	return McpTool::fromArray(
 		[
-			'name'        => str_replace( '/', '-', $ability_name ),
-			'title'       => $definition['label'],
-			'description' => $definition['description'],
-			'inputSchema' => input_schema( $definition['methods'] ),
-			'annotations' => $annotations,
-			'handler'     => __NAMESPACE__ . '\\handle',
-			'permission'  => static fn( $args ) => check_permission( $ability_name, (array) $args ),
+			'name'         => str_replace( '/', '-', $ability_name ),
+			'title'        => $definition['label'],
+			'description'  => $definition['description'],
+			'inputSchema'  => input_schema( $definition['methods'] ),
+			'outputSchema' => output_schema(),
+			'annotations'  => $annotations,
+			'handler'      => __NAMESPACE__ . '\\handle',
+			'permission'   => static fn( $args ) => check_permission( $ability_name, (array) $args ),
 		]
 	);
 }
