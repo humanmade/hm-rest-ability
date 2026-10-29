@@ -47,4 +47,8 @@ function bootstrap(): void {
 	require_once HM_REST_ABILITY_PATH . 'inc/media-abilities.php';
 }
 
-add_action( 'plugins_loaded', __NAMESPACE__ . '\\bootstrap' );
+if ( did_action( 'after_setup_theme' ) ) {
+	bootstrap();
+} else {
+	add_action( 'after_setup_theme', __NAMESPACE__ . '\\bootstrap' );
+}

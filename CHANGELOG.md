@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Turn the plugin off when core disables AI. On WordPress 7.0 and later, `wp_supports_ai()` is false when the `WP_AI_SUPPORT` constant is false or a `wp_supports_ai` filter returns false, and the plugin then registers no abilities, MCP tools or filters. It checks on `plugins_loaded`, so filters added by other plugins count. Earlier WordPress versions have no such switch and load the plugin as before. In `hm-rest-ability.php`.
+- Turn the plugin off when core disables AI. On WordPress 7.0 and later, `wp_supports_ai()` is false when the `WP_AI_SUPPORT` constant is false or a `wp_supports_ai` filter returns false, and the plugin then registers no abilities, MCP tools or filters. It checks on `after_setup_theme`, so filters added by plugins and themes count; it runs before the REST request is authenticated, so a filter can't depend on the current user. Earlier WordPress versions have no such switch and load the plugin as before. In `hm-rest-ability.php`.
 - Declare an output schema on `rest-api/read`, `rest-api/write` and `rest-api/delete`, so MCP clients see `outputSchema` for `rest-api-read`, `rest-api-write` and `rest-api-delete` in `tools/list`. It describes `status`, `headers`, `data`, `truncated`, `error`, `suggestions` and `guidance`, with every property optional and extra properties allowed. In `inc/rest-api-abilities.php` and `inc/confirmation.php`.
 
 ### Changed
