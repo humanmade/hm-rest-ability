@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Validate and sanitize a call's params before running the endpoint's own permission check, as core's `WP_REST_Server::dispatch()` does. A permission check that reads a sanitized param saw the raw value instead, so `GET /wp/v2/plugins/<dir>/<file>` failed with "Plugin not found." and the tools could not read, activate, deactivate or delete a single plugin. Params that fail validation now return core's `rest_invalid_param` or `rest_missing_callback_param` error from the permission check. In `inc/rest-api-abilities.php`.
+- Validate and sanitize a call's params before running the endpoint's own permission check, as core's `WP_REST_Server::dispatch()` does. A permission check that reads a sanitized param saw the raw value instead, so `GET /wp/v2/plugins/<dir>/<file>` failed with "Plugin not found." and the tools could not read, activate, deactivate or delete a single plugin. Params that fail validation now return core's `rest_invalid_param` or `rest_missing_callback_param` error from the permission check, with the reason for each invalid param in the message. In `inc/rest-api-abilities.php`.
 
 ## [1.0.0] - 2026-10-05
 

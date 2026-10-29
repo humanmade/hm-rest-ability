@@ -367,7 +367,9 @@ class RestApiAbilitiesTest extends TestCase {
 					},
 					'args'                => [
 						'per_page' => [
-							'validate_callback' => static fn ( $value ) => is_numeric( $value ),
+							'validate_callback' => static fn ( $value ) => is_numeric( $value )
+								? true
+								: new WP_Error( 'rest_invalid_type', 'per_page is not of type integer.' ),
 						],
 					],
 				],
@@ -383,6 +385,8 @@ class RestApiAbilitiesTest extends TestCase {
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'rest_invalid_param', $result->get_error_code() );
+		$this->assertSame( 'Invalid parameter(s): per_page. per_page is not of type integer.', $result->get_error_message() );
+		$this->assertSame( [ 'per_page' => 'per_page is not of type integer.' ], $result->get_error_data()['params'] );
 		$this->assertFalse( $called );
 	}
 

@@ -128,22 +128,34 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 		 * validate_callback, like core.
 		 */
 		public function has_valid_params() {
+			$invalid = [];
+
 			foreach ( $this->attributes['args'] ?? [] as $key => $arg ) {
 				$value = $this->get_param( $key );
 
 				if ( null === $value ) {
 					if ( ! empty( $arg['required'] ) ) {
-						return new WP_Error( 'rest_missing_callback_param', "Missing parameter(s): $key", [ 'status' => 400 ] );
+						return new WP_Error( 'rest_missing_callback_param', "Missing parameter(s): $key", [ 'status' => 400, 'params' => [ $key ] ] );
 					}
 					continue;
 				}
 
 				if ( isset( $arg['validate_callback'] ) ) {
 					$valid = call_user_func( $arg['validate_callback'], $value, $this, $key );
-					if ( false === $valid || is_wp_error( $valid ) ) {
-						return new WP_Error( 'rest_invalid_param', "Invalid parameter(s): $key", [ 'status' => 400 ] );
+					if ( false === $valid ) {
+						$invalid[ $key ] = 'Invalid parameter.';
+					} elseif ( is_wp_error( $valid ) ) {
+						$invalid[ $key ] = $valid->get_error_message();
 					}
 				}
+			}
+
+			if ( $invalid ) {
+				return new WP_Error(
+					'rest_invalid_param',
+					'Invalid parameter(s): ' . implode( ', ', array_keys( $invalid ) ),
+					[ 'status' => 400, 'params' => $invalid ]
+				);
 			}
 
 			return true;
