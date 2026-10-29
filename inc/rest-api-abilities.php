@@ -247,7 +247,7 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 			if ( is_wp_error( $result ) ) {
 				return $result;
 			}
-			return $result !== false;
+			return false !== $result && null !== $result;
 		}
 	}
 
