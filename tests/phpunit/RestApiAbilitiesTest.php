@@ -563,15 +563,15 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( $data, $result['data'] );
 	}
 
-	public function test_execute_leaves_json_serializable_data_alone(): void {
+	public function test_execute_converts_json_serializable_data_to_what_it_serializes_to(): void {
 		$data   = new class() implements \JsonSerializable {
-			public function jsonSerialize(): array {
-				return [ 'ID' => 7 ];
+			public function jsonSerialize(): string {
+				return 'serialized';
 			}
 		};
 		$result = $this->execute_with_response_data( $data );
 
-		$this->assertSame( $data, $result['data'] );
+		$this->assertSame( 'serialized', $result['data'] );
 	}
 
 	/**

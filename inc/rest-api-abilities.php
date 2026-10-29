@@ -10,7 +10,6 @@
 
 namespace HM\RestApiAbilities;
 
-use JsonSerializable;
 use stdClass;
 use WP_Error;
 use WP_REST_Request;
@@ -413,8 +412,8 @@ function execute( array $input ): array {
 
 	$data = rest_get_server()->response_to_data( $response, false );
 
-	// Core's output validation accepts only arrays, stdClass and JsonSerializable objects.
-	if ( is_object( $data ) && ! $data instanceof stdClass && ! $data instanceof JsonSerializable ) {
+	// Core's output validation accepts only arrays and stdClass objects.
+	if ( is_object( $data ) && ! $data instanceof stdClass ) {
 		$data = json_decode( wp_json_encode( $data ), true );
 	}
 
