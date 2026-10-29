@@ -219,6 +219,26 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 				$accepted = array_merge( $accepted, array_keys( $handler['methods'] ?? [] ) );
 				continue;
 			}
+
+			// Prepare the request the way WP_REST_Server::dispatch() does
+			// before it runs the permission callback.
+			$request->set_attributes( $handler );
+			$defaults = [];
+			foreach ( $handler['args'] ?? [] as $arg => $options ) {
+				if ( isset( $options['default'] ) ) {
+					$defaults[ $arg ] = $options['default'];
+				}
+			}
+			$request->set_default_params( $defaults );
+			$valid = $request->has_valid_params();
+			if ( is_wp_error( $valid ) ) {
+				return $valid;
+			}
+			$sanitized = $request->sanitize_params();
+			if ( is_wp_error( $sanitized ) ) {
+				return $sanitized;
+			}
+
 			$permission_callback = $handler['permission_callback'] ?? null;
 			if ( ! $permission_callback || $permission_callback === '__return_true' ) {
 				return true;

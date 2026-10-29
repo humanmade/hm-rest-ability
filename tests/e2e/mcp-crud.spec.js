@@ -319,6 +319,16 @@ test.describe( 'MCP discovery', () => {
 		expect( themeStyles.data ).toHaveProperty( 'settings' );
 	} );
 
+	test( 'reads a single plugin by its directory and file name', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+
+		const plugin = await rest( client, 'GET', '/wp/v2/plugins/hm-rest-ability/hm-rest-ability', { _fields: 'plugin,status' } );
+
+		expect( plugin.status ).toBe( 200 );
+		expect( plugin.data.plugin ).toBe( 'hm-rest-ability/hm-rest-ability' );
+		expect( plugin.data.status ).toBe( 'active' );
+	} );
+
 	test( 'explains where the global styles id and stylesheet come from', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 
