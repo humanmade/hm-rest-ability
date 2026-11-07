@@ -376,3 +376,57 @@ test.describe( 'MCP discovery', () => {
 		expect( Object.keys( core.data.routes ).some( ( route ) => route.startsWith( '/wp/v2/global-styles/' ) ) ).toBe( true );
 	} );
 } );
+
+test( 'preserves requested embedded authors and leaves unrequested relations absent', async ( { request } ) => {
+	const client = await McpClient.connect( request );
+	const created = await rest( client, 'POST', '/wp/v2/posts', { title: 'Embedded relation fixture', status: 'draft' } );
+	const route = `/wp/v2/posts/${ created.data.id }`;
+	try {
+		const plain = await rest( client, 'GET', route );
+		expect( plain.data._embedded ).toBeUndefined();
+		const embedded = await rest( client, 'GET', route, { _embed: 'author', _fields: 'id,author,_links,_embedded' } );
+		expect( embedded.data._embedded.author[ 0 ].id ).toBe( plain.data.author );
+		expect( embedded.data._embedded[ 'wp:term' ] ).toBeUndefined();
+	} finally {
+		await rest( client, 'DELETE', route, { force: true } );
+	}
+} );
+
+test( 'continues a large raw body within the cap and rejects a changed response', async ( { request } ) => {
+	const client = await McpClient.connect( request );
+	const content = 'A paragraph with Unicode café. '.repeat( 2000 );
+	const created = await rest( client, 'POST', '/wp/v2/pages', { title: 'Continuation fixture', content, status: 'draft' } );
+	const route = `/wp/v2/pages/${ created.data.id }`;
+	const args = { method: 'GET', route, params: { context: 'edit', _fields: 'id,content.raw' } };
+	try {
+		const full = await rest( client, 'GET', route, { context: 'edit' } );
+		expect( created.truncated.sha256 ).toBe( full.truncated.sha256 );
+		const initial = await client.callTool( 'rest-api-read', args );
+		expect( initial.data.truncated.response_cursor ).toEqual( expect.any( String ) );
+		const firstCursor = initial.data.truncated.response_cursor;
+		const refused = await client.callTool( 'rest-api-write', { method: 'POST', route, params: { title: 'Must not be written' }, response_cursor: firstCursor } );
+		expect( refused.data.status ).toBe( 400 );
+		const unchanged = await rest( client, 'GET', route, { _fields: 'id,title' } );
+		expect( unchanged.data.title.rendered ).toBe( 'Continuation fixture' );
+		let cursor = firstCursor;
+		const chunks = [];
+		do {
+			const chunk = await client.callTool( 'rest-api-read', { ...args, response_cursor: cursor } );
+			expect( chunk.isError ).toBe( false );
+			expect( Buffer.byteLength( JSON.stringify( chunk.data.data ) ) ).toBeLessThanOrEqual( 50000 );
+			expect( chunk.data.response.encoding ).toBe( 'base64-json' );
+			chunks.push( Buffer.from( chunk.data.data, 'base64' ) );
+			cursor = chunk.data.response.next_cursor;
+		} while ( cursor );
+		expect( JSON.parse( Buffer.concat( chunks ).toString( 'utf8' ) ).content.raw ).toBe( content );
+		await rest( client, 'POST', route, { content: 'Changed since the first read.' } );
+		const stale = await client.callTool( 'rest-api-read', { ...args, response_cursor: firstCursor } );
+		expect( stale.data.status ).toBe( 409 );
+		expect( stale.data.data.code ).toBe( 'rest_response_changed' );
+		const subscriber = await McpClient.connect( request, 'subscriber' );
+		const denied = await subscriber.callTool( 'rest-api-read', { ...args, response_cursor: firstCursor } );
+		expect( denied.isError ).toBe( true );
+	} finally {
+		await rest( client, 'DELETE', route, { force: true } );
+	}
+} );

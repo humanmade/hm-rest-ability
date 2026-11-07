@@ -13,6 +13,7 @@ namespace HM\RestApiAbilities;
 use stdClass;
 use WP_Error;
 use WP_REST_Request;
+use WP_REST_Response;
 
 use function HM\RouteRisk\classify_route;
 use function HM\RouteRisk\guidance_for_risk;
@@ -139,7 +140,7 @@ function register_ability(): void {
  * @return array
  */
 function input_schema( array $methods ): array {
-	return [
+	$schema = [
 		'type'       => 'object',
 		'properties' => [
 			'method' => [
@@ -159,6 +160,15 @@ function input_schema( array $methods ): array {
 		],
 		'required'   => [ 'method', 'route' ],
 	];
+
+	if ( in_array( 'GET', $methods, true ) ) {
+		$schema['properties']['response_cursor'] = [
+			'type'        => 'string',
+			'description' => 'Continue a truncated GET with its response_cursor and the same route and params. Each chunk is base64-encoded JSON bytes; concatenate decoded chunks before parsing. A changed response returns 409; restart the read.',
+		];
+	}
+
+	return $schema;
 }
 
 /**
@@ -185,6 +195,10 @@ function output_schema(): array {
 			'data'        => [
 				'type'        => [ 'object', 'array', 'string', 'number', 'integer', 'boolean', 'null' ],
 				'description' => 'Response body, as JSON. Its shape depends on the route.',
+			],
+			'response'    => [
+				'type'        => 'object',
+				'description' => 'GET continuation metadata: base64-json encoding, byte offset, total_bytes, sha256 of the complete JSON, and next_cursor (null at the end).',
 			],
 			'truncated'   => [
 				'type'        => 'object',
@@ -398,6 +412,10 @@ function execute( array $input ): array {
 	$route  = $input['route'] ?? '';
 	$params = $input['params'] ?? [];
 
+	if ( isset( $input['response_cursor'] ) && 'GET' !== $method ) {
+		return response_error( 'rest_invalid_cursor', 'Only GET responses can be continued.', 400 );
+	}
+
 	if ( 'OPTIONS' === $method ) {
 		return describe_route( $route );
 	}
@@ -415,15 +433,24 @@ function execute( array $input ): array {
 		$response = rest_filter_response_fields( $response, rest_get_server(), $request );
 	}
 
-	$data = rest_get_server()->response_to_data( $response, false );
+	$embed = isset( $params['_embed'] ) ? rest_parse_embed_param( $params['_embed'] ) : false;
+	$data  = rest_get_server()->response_to_data( $response, $embed );
 
 	// Core's output validation accepts only arrays and stdClass objects.
 	if ( is_object( $data ) && ! $data instanceof stdClass ) {
 		$data = json_decode( wp_json_encode( $data ), true );
 	}
 
-	$data   = condense_routes( $data );
-	$capped = is_route_index( $data ) ? cap_route_index( $data ) : cap_response_data( $data );
+	// Continuations re-dispatch GET under the current user's permissions. Pin
+	// the entire response and request identity so fragments cannot mix versions,
+	// sites, users, or filters. Writes are never re-dispatched for continuation.
+	if ( isset( $input['response_cursor'] ) ) {
+		return continue_response( $input, $response, $data );
+	}
+
+	$full_data = $data;
+	$data      = condense_routes( $data );
+	$capped    = is_route_index( $data ) ? cap_route_index( $data ) : cap_response_data( $data );
 
 	$result = [
 		'status'  => $response->get_status(),
@@ -433,9 +460,104 @@ function execute( array $input ): array {
 
 	if ( isset( $capped['truncated'] ) ) {
 		$result['truncated'] = $capped['truncated'];
+		$result['truncated']['sha256'] = hash( 'sha256', wp_json_encode( $full_data ) );
+		if ( 'GET' === $method ) {
+			$result['truncated']['response_cursor'] = response_cursor( 0, response_digest( $input, $response, $full_data ) );
+		}
 	}
 
 	return $result;
+}
+
+/**
+ * Returns a native-shaped error without dispatching another operation.
+ *
+ * @param string $code Error code.
+ * @param string $message Repair guidance.
+ * @param int $status HTTP status.
+ */
+function response_error( string $code, string $message, int $status ): array {
+	$capped = cap_response_data( compact( 'code', 'message' ) );
+	return [
+		'status'  => $status,
+		'headers' => [],
+	] + $capped;
+}
+
+/**
+ * Identifies one complete response under its current request authority.
+ *
+ * @param array $input Ability input.
+ * @param WP_REST_Response $response Native response.
+ * @param mixed $data Complete response data.
+ */
+function response_digest( array $input, WP_REST_Response $response, $data ): string {
+	return hash( 'sha256', wp_json_encode( [
+		get_current_blog_id(),
+		get_current_user_id(),
+		$input['method'],
+		$input['route'],
+		$input['params'] ?? [],
+		$response->get_status(),
+		$response->get_headers(),
+		$data,
+	] ) );
+}
+
+/**
+ * Encodes a byte position and response identity, never an authorization grant.
+ *
+ * @param int $offset Byte offset.
+ * @param string $digest Response identity.
+ */
+function response_cursor( int $offset, string $digest ): string {
+	return base64_encode( wp_json_encode( [ $offset, $digest ] ) );
+}
+
+/**
+ * Returns a bounded fragment of a re-read, unchanged GET response.
+ *
+ * Base64 lets chunks split at any byte, including inside UTF-8 characters.
+ * The data cap applies to the encoded fragment, as it does to ordinary data.
+ *
+ * @param array $input Ability input.
+ * @param WP_REST_Response $response Re-dispatched response.
+ * @param mixed $data Complete response data.
+ */
+function continue_response( array $input, WP_REST_Response $response, $data ): array {
+	$cursor = json_decode( base64_decode( $input['response_cursor'], true ) ?: '', true );
+	if ( ! is_array( $cursor ) || count( $cursor ) !== 2 || ! is_int( $cursor[0] ) || $cursor[0] < 0 || ! is_string( $cursor[1] ) ) {
+		return response_error( 'rest_invalid_cursor', 'Use the response_cursor returned by the initial GET.', 400 );
+	}
+
+	$digest = response_digest( $input, $response, $data );
+	if ( ! hash_equals( $digest, $cursor[1] ) ) {
+		return response_error( 'rest_response_changed', 'The response changed. Restart the GET before continuing.', 409 );
+	}
+
+	$json      = wp_json_encode( $data );
+	$total     = strlen( $json );
+	$max_bytes = max_response_bytes();
+	// Four base64 bytes encode three source bytes. Reserve JSON's two quotes.
+	$size = $max_bytes > 0 ? intdiv( max( 0, $max_bytes - 2 ), 4 ) * 3 : $total;
+	if ( $size < 1 || $cursor[0] >= $total ) {
+		return response_error( 'rest_invalid_cursor', 'The response cursor or configured response cap cannot produce a chunk.', 400 );
+	}
+
+	$chunk = substr( $json, $cursor[0], $size );
+	$next  = $cursor[0] + strlen( $chunk );
+	return [
+		'status'   => $response->get_status(),
+		'headers'  => $response->get_headers(),
+		'data'     => base64_encode( $chunk ),
+		'response' => [
+			'encoding'    => 'base64-json',
+			'offset'      => $cursor[0],
+			'total_bytes' => $total,
+			'sha256'      => hash( 'sha256', $json ),
+			'next_cursor' => $next < $total ? response_cursor( $next, $digest ) : null,
+		],
+	];
 }
 
 /**

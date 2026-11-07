@@ -12,6 +12,9 @@ use WP_REST_Response;
 use WP_REST_Server;
 
 use function HM\RestApiAbilities\build_request;
+use function HM\RestApiAbilities\response_digest;
+use function HM\RestApiAbilities\response_cursor;
+use function HM\RestApiAbilities\continue_response;
 use function HM\RestApiAbilities\cap_route_index;
 use function HM\RestApiAbilities\route_namespace;
 use function HM\RestApiAbilities\cap_response_data;
@@ -30,6 +33,8 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->load_plugin_file( 'inc/route-risk.php' );
 		$this->load_plugin_file( 'inc/route-suggestions.php' );
 		$this->load_plugin_file( 'inc/rest-api-abilities.php' );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 	}
 
 	/**
@@ -130,7 +135,7 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertArrayNotHasKey( 'required', $schema );
 		$this->assertTrue( $schema['additionalProperties'] );
 		$this->assertSame(
-			[ 'status', 'headers', 'data', 'truncated', 'error', 'suggestions', 'guidance' ],
+			[ 'status', 'headers', 'data', 'response', 'truncated', 'error', 'suggestions', 'guidance' ],
 			array_keys( $schema['properties'] )
 		);
 
@@ -744,6 +749,36 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertArrayHasKey( 'truncated', $result );
 		$this->assertSame( 'response_too_large', $result['truncated']['reason'] );
 		$this->assertNotEmpty( $result['truncated']['hint'] );
+	}
+
+	public function test_continuation_checks_identity_offsets_and_the_encoded_chunk_cap(): void {
+		$this->set_max_response_bytes( 64 );
+		$input    = [ 'method' => 'GET', 'route' => '/wp/v2/pages/1' ];
+		$response = new WP_REST_Response( null, 200 );
+		$data     = [ 'content' => str_repeat( 'café', 40 ) ];
+		$digest   = response_digest( $input, $response, $data );
+		$input['response_cursor'] = response_cursor( 0, $digest );
+		$chunks = '';
+		do {
+			$result = continue_response( $input, $response, $data );
+			$this->assertLessThanOrEqual( 64, strlen( wp_json_encode( $result['data'] ) ) );
+			$this->assertSame( strlen( $chunks ), $result['response']['offset'] );
+			$chunks .= base64_decode( $result['data'] );
+			$input['response_cursor'] = $result['response']['next_cursor'];
+		} while ( null !== $input['response_cursor'] );
+		$this->assertSame( $data, json_decode( $chunks, true ) );
+
+		$input['response_cursor'] = response_cursor( 0, $digest );
+		Functions\when( 'get_current_user_id' )->justReturn( 2 );
+		$this->assertSame( 409, continue_response( $input, $response, $data )['status'] );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_current_blog_id' )->justReturn( 2 );
+		$this->assertSame( 409, continue_response( $input, $response, $data )['status'] );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		$input['response_cursor'] = response_cursor( strlen( $chunks ), $digest );
+		$this->assertSame( 400, continue_response( $input, $response, $data )['status'] );
+		$input['response_cursor'] = 'invalid';
+		$this->assertSame( 400, continue_response( $input, $response, $data )['status'] );
 	}
 
 	/**

@@ -21,7 +21,9 @@ The split lets a client auto-approve reads and still ask before a write or a del
 - Three tools, not one per endpoint, so the tool list stays small.
 - `GET /` returns a condensed route index of a few kilobytes, not the ~1MB core index. On a large site it falls back to a count per namespace and points at `GET /<namespace>`.
 - `OPTIONS /wp/v2/posts` returns one route's parameters, only when the agent needs them.
-- Responses are capped at 50KB. A trimmed response says what was left out and how to page through it or narrow it with `_fields`.
+- Responses are capped at 50KB. A trimmed response says what was left out and how to narrow it with `_fields`. Oversized GET responses also supply `truncated.response_cursor`. Call the read tool with that cursor and the same route and params, concatenate the decoded `base64-json` chunks in byte-offset order, verify `total_bytes` and `sha256`, then parse the JSON. Continue until `response.next_cursor` is null. A 409 means the response changed and the read must restart. Cursors never bypass current permissions.
+- Truncated responses include `truncated.sha256` for the complete, JSON-encoded native data. A client can verify an oversized write response by reading its saved resource and matching those bytes. This never repeats the write; a different representation or changed resource cannot establish the original write result.
+- `_embed` follows WordPress’s normal behaviour, including named relations such as `_embed=author`.
 - An unknown route returns the nearest real routes, so the agent doesn't have to search again.
 
 ### Built-in guardrails
