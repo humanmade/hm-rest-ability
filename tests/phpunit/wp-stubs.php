@@ -265,7 +265,7 @@ if ( ! class_exists( 'WP_REST_Server' ) ) {
 			$this->response_data = $data;
 		}
 
-		public function response_to_data( WP_REST_Response $response, bool $embed ) {
+		public function response_to_data( WP_REST_Response $response, $embed ) {
 			return $this->response_data ?? [ 'status' => $response->get_status() ];
 		}
 
