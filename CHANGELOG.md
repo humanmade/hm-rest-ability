@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve each native item status when an oversized core REST batch response loses its item bodies and headers.
 - Honour `_embed` using WordPress’s native embed parser and response conversion, including selective relations.
 
 ### Changed

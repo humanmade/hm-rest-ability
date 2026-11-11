@@ -202,7 +202,7 @@ function output_schema(): array {
 			],
 			'truncated'   => [
 				'type'        => 'object',
-				'description' => 'Present when the response was trimmed to fit the size cap. Says why and how to narrow the request.',
+				'description' => 'Present when the response was trimmed to fit the size cap. batch_receipt is true when data contains all native batch item statuses and omits their bodies and headers.',
 			],
 			'error'       => [
 				'type'        => 'string',
@@ -452,6 +452,10 @@ function execute( array $input ): array {
 	$data      = condense_routes( $data );
 	$capped    = is_route_index( $data ) ? cap_route_index( $data ) : cap_response_data( $data );
 
+	if ( isset( $capped['truncated'] ) && 'POST' === $method && '/batch/v1' === rtrim( $route, '/' ) && 207 === $response->get_status() ) {
+		$capped = cap_batch_response( $data, $capped );
+	}
+
 	$result = [
 		'status'  => $response->get_status(),
 		'headers' => $response->get_headers(),
@@ -467,6 +471,50 @@ function execute( array $input ): array {
 	}
 
 	return $result;
+}
+
+/**
+ * Preserves the ordered native outcomes of an oversized core REST batch.
+ *
+ * A 207 alone says nothing about individual writes, and retrying could apply
+ * them again. Keep one status per item (or null when validation skipped it).
+ *
+ * @param mixed $data Native response body.
+ * @param array $capped Response already trimmed by the ordinary size cap.
+ * @return array
+ */
+function cap_batch_response( $data, array $capped ): array {
+	if ( ! is_array( $data ) || ! is_array( $data['responses'] ?? null ) || ! array_is_list( $data['responses'] ) ) {
+		return $capped;
+	}
+
+	$validation_failed = 'validation' === ( $data['failed'] ?? null );
+	$receipt           = $validation_failed ? [ 'failed' => 'validation' ] : [];
+	$receipt['responses'] = [];
+
+	foreach ( $data['responses'] as $response ) {
+		if ( null === $response && $validation_failed ) {
+			$receipt['responses'][] = null;
+			continue;
+		}
+
+		$status = $response['status'] ?? null;
+		if ( ! is_int( $status ) || $status < 200 || $status > 599 ) {
+			return $capped;
+		}
+		$receipt['responses'][] = [ 'status' => $status ];
+	}
+
+	if ( encoded_size( $receipt ) > $capped['truncated']['max_bytes'] ) {
+		return $capped;
+	}
+
+	$capped['data'] = $receipt;
+	unset( $capped['truncated']['omitted_fields'] );
+	$capped['truncated']['batch_receipt'] = true;
+	$capped['truncated']['hint'] = 'Every batch item status is retained. Item bodies and headers were omitted. Read affected resources to inspect current state before retrying.';
+
+	return $capped;
 }
 
 /**
