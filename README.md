@@ -23,6 +23,7 @@ The split lets a client auto-approve reads and still ask before a write or a del
 - `OPTIONS /wp/v2/posts` returns one route's parameters, only when the agent needs them.
 - Responses are capped at 50KB. A trimmed response says what was left out and how to narrow it with `_fields`. Oversized GET responses also supply `truncated.response_cursor`. Call the read tool with that cursor and the same route and params, concatenate the decoded `base64-json` chunks in byte-offset order, verify `total_bytes` and `sha256`, then parse the JSON. Continue until `response.next_cursor` is null. A 409 means the response changed and the read must restart. Cursors never bypass current permissions.
 - Truncated responses include `truncated.sha256` for the complete, JSON-encoded native data. A client can verify an oversized write response by reading its saved resource and matching those bytes. This never repeats the write; a different representation or changed resource cannot establish the original write result.
+- An oversized core REST batch can return `truncated.batch_receipt: true`. Its `data.responses` retains one status per request in the original order and omits item bodies and headers. A validation failure keeps `data.failed: "validation"` and a null entry for each skipped request. Inspect every item status before reporting success or considering a retry.
 - `_embed` follows WordPress’s normal behaviour, including named relations such as `_embed=author`.
 - An unknown route returns the nearest real routes, so the agent doesn't have to search again.
 

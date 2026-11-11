@@ -91,6 +91,32 @@ test.describe( 'MCP content operations', () => {
 		expect( gone.text ).toContain( 'Invalid post ID' );
 	} );
 
+	test( 'keeps every item status when a native batch exceeds the response cap', async ( { request } ) => {
+		const client = await McpClient.connect( request );
+		const post = await rest( client, 'POST', '/wp/v2/posts', { title: 'Batch receipt fixture', status: 'draft' } );
+		const id = post.data.id;
+		const excerpt = 'Batch receipt content '.repeat( 2700 );
+		const title = 'Saved through the oversized batch';
+
+		try {
+			const batch = await rest( client, 'POST', '/batch/v1', {
+				requests: [
+					{ method: 'POST', path: `/wp/v2/posts/${ id }?context=edit&_fields=id,title,excerpt`, body: { title, excerpt } },
+					{ method: 'POST', path: '/missing-batch-fixture/v1/resource', body: {} },
+				],
+			} );
+
+			expect( batch.status ).toBe( 207 );
+			expect( batch.truncated.batch_receipt ).toBe( true );
+			expect( batch.data.responses ).toEqual( [ { status: 200 }, { status: 404 } ] );
+
+			const saved = await rest( client, 'GET', `/wp/v2/posts/${ id }`, { context: 'edit', _fields: 'title' } );
+			expect( saved.data.title.raw ).toBe( title );
+		} finally {
+			await rest( client, 'DELETE', `/wp/v2/posts/${ id }`, { force: true } );
+		}
+	} );
+
 	test( 'creates a category and assigns it to a post', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 

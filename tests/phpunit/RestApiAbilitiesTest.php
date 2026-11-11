@@ -718,6 +718,41 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertSame( 'Narrow the response with _fields, per_page, or a more specific route.', $result['truncated']['hint'] );
 	}
 
+	public function test_execute_preserves_each_oversized_batch_status_without_replaying_the_request(): void {
+		$this->set_max_response_bytes( 100 );
+		$server = new WP_REST_Server();
+		$server->set_response_data( [
+			'responses' => [
+				[ 'status' => 200, 'body' => str_repeat( 'x', 200 ) ],
+				[ 'status' => 403, 'body' => [ 'code' => 'rest_forbidden' ] ],
+			],
+		] );
+		Functions\expect( 'rest_do_request' )->once()->andReturn( new WP_REST_Response( null, 207 ) );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'POST', 'route' => '/batch/v1' ] );
+
+		$this->assertSame( 207, $result['status'] );
+		$this->assertSame( [ 'responses' => [ [ 'status' => 200 ], [ 'status' => 403 ] ] ], $result['data'] );
+		$this->assertTrue( $result['truncated']['batch_receipt'] );
+	}
+
+	public function test_execute_preserves_skipped_items_in_an_oversized_batch_validation_failure(): void {
+		$this->set_max_response_bytes( 100 );
+		$server = new WP_REST_Server();
+		$server->set_response_data( [
+			'failed'    => 'validation',
+			'responses' => [ null, [ 'status' => 400, 'body' => str_repeat( 'x', 200 ) ] ],
+		] );
+		Functions\expect( 'rest_do_request' )->once()->andReturn( new WP_REST_Response( null, 207 ) );
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$result = execute( [ 'method' => 'POST', 'route' => '/batch/v1/' ] );
+
+		$this->assertSame( [ 'failed' => 'validation', 'responses' => [ null, [ 'status' => 400 ] ] ], $result['data'] );
+		$this->assertTrue( $result['truncated']['batch_receipt'] );
+	}
+
 	public function test_execute_applies_fields_when_requested(): void {
 		$response = new WP_REST_Response( null, 200 );
 
