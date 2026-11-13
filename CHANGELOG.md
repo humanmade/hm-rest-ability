@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `content/find` and `content/replace` abilities, exposed as the `content-find` and `content-replace` MCP tools, so a client can change part of a post's content without sending all of it. `content-find` returns each match with its line numbers and a copyable excerpt, plus a `content_sha256` of the content. `content-replace` is a dry run by default and refuses when the content has changed since it was read, when the match count is not `expected_matches`, when it would unbalance block comments, or when the route needs the user to confirm writes. A saved edit is read back and reported as `verified`. The `rest-api/write` description now points at them. In `inc/content-abilities.php`.
+
 - Continue oversized GET responses with bounded base64-encoded JSON chunks. Cursors pin the request, site, user and complete response; changed responses return 409 and each call rechecks native permissions. Truncated responses include the full data SHA-256 so clients can verify a readback after a write without repeating it.
 
 - Turn the plugin off when core disables AI. On WordPress 7.0 and later, `wp_supports_ai()` is false when the `WP_AI_SUPPORT` constant is false or a `wp_supports_ai` filter returns false, and the plugin then registers no abilities, MCP tools or filters. It checks on `after_setup_theme`, so filters added by plugins and themes count; it runs before the REST request is authenticated, so a filter can't depend on the current user. Earlier WordPress versions have no such switch and load the plugin as before. In `hm-rest-ability.php`.

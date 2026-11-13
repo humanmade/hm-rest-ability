@@ -45,7 +45,7 @@ test.describe( 'MCP protocol', () => {
 		expect( status ).toBe( 401 );
 	} );
 
-	test( 'lists all four abilities as tools in their own right', async ( { request } ) => {
+	test( 'lists every ability as a tool in its own right', async ( { request } ) => {
 		const client = await McpClient.connect( request );
 		const names = ( await client.listTools() ).map( ( tool ) => tool.name );
 
@@ -53,6 +53,8 @@ test.describe( 'MCP protocol', () => {
 		expect( names ).toContain( 'rest-api-write' );
 		expect( names ).toContain( 'rest-api-delete' );
 		expect( names ).toContain( 'media-upload' );
+		expect( names ).toContain( 'content-find' );
+		expect( names ).toContain( 'content-replace' );
 	} );
 
 	test( 'keeps the adapter tools available alongside them', async ( { request } ) => {

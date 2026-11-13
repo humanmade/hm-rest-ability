@@ -45,6 +45,7 @@ function bootstrap(): void {
 	require_once HM_REST_ABILITY_PATH . 'inc/rest-api-abilities.php';
 	require_once HM_REST_ABILITY_PATH . 'inc/confirmation.php';
 	require_once HM_REST_ABILITY_PATH . 'inc/media-abilities.php';
+	require_once HM_REST_ABILITY_PATH . 'inc/content-abilities.php';
 }
 
 if ( did_action( 'after_setup_theme' ) ) {

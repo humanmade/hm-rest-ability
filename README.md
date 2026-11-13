@@ -1,6 +1,6 @@
 # HM REST Ability
 
-Give MCP clients such as Claude the whole WordPress REST API through three tools. Any route a plugin registers works straight away, even if the plugin defines no abilities. Built on the [Abilities API](https://make.wordpress.org/core/) and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter).
+Give MCP clients such as Claude the whole WordPress REST API through three tools, plus two for editing part of a post's content. Any route a plugin registers works straight away, even if the plugin defines no abilities. Built on the [Abilities API](https://make.wordpress.org/core/) and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter).
 
 ## Features
 
@@ -41,6 +41,24 @@ On clients that support MCP elicitation (2026-07-28), a delete or a write to a r
 ### Your own guardrails
 
 Filters let you tighten access or change the advice, without forking the plugin. See [Filters](#filters).
+
+### Edit part of a post's content
+
+Editing a large post through `rest-api-write` means sending the whole `content` back, which a model can't reliably copy exactly. Two tools change only the part that needs it:
+
+| MCP tool | Ability | What it does |
+|---|---|---|
+| `content-find` | `content/find` | Finds exact text in a post's content. Returns each match with its line numbers and the lines around it, plus the `content_sha256` to pass to the next call. Read-only. |
+| `content-replace` | `content/replace` | Replaces exact text. A dry run is the default and shows the changed lines. Set `dry_run` to `false` to save. |
+
+The server enforces the checks, so a weaker model can't skip them. `content-replace` refuses when:
+
+- the content changed since `content-find` read it
+- `old_string` doesn't match `expected_matches` times (default 1)
+- the edit would leave a block's opening and closing comments unbalanced
+- the route needs the user to confirm writes, in which case it points at `rest-api-write`
+
+After a save it reads the content back and returns `verified`, the new `modified_gmt` and the new `content_sha256`, ready for the next edit. Both tools work on any single item route that returns `content.raw` with `context=edit`, such as `/wp/v2/pages/123`, and follow the same permission checks and `hm_rest_ability_policy` filter as the REST tools.
 
 ### Extras
 
