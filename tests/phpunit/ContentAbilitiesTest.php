@@ -156,10 +156,10 @@ class ContentAbilitiesTest extends TestCase {
 	 */
 	private function replace_args( array $overrides = [] ): array {
 		return $overrides + [
-			'route'        => self::ROUTE,
-			'old_string'   => 'Alpha',
-			'new_string'   => 'Gamma',
-			'modified_gmt' => self::MODIFIED,
+			'route'          => self::ROUTE,
+			'old_string'     => 'Alpha',
+			'new_string'     => 'Gamma',
+			'content_sha256' => hash( 'sha256', $this->page['content']['raw'] ),
 		];
 	}
 
@@ -184,6 +184,7 @@ class ContentAbilitiesTest extends TestCase {
 
 		$this->assertSame( self::ROUTE, $result['route'] );
 		$this->assertSame( self::MODIFIED, $result['modified_gmt'] );
+		$this->assertSame( hash( 'sha256', $this->markup() ), $result['content_sha256'] );
 		$this->assertSame( strlen( $this->markup() ), $result['content_bytes'] );
 		$this->assertSame( 10, $result['line_count'] );
 		$this->assertSame( 1, $result['match_count'] );
@@ -353,22 +354,27 @@ class ContentAbilitiesTest extends TestCase {
 	}
 
 	public function test_replace_refuses_when_the_content_has_changed(): void {
-		$error = $this->assert_error(
-			'hm_content_changed',
-			replace( $this->replace_args( [ 'modified_gmt' => '2026-10-31T09:00:00', 'dry_run' => false ] ) )
-		);
+		$args = $this->replace_args( [ 'dry_run' => false ] );
+
+		$this->page['content']['raw'] .= "\n<!-- wp:paragraph -->\n<p>Added by someone else</p>\n<!-- /wp:paragraph -->";
+
+		$error = $this->assert_error( 'hm_content_changed', replace( $args ) );
 
 		$this->assertSame(
-			'The content changed at 2026-11-01T10:00:00 since you read it at 2026-10-31T09:00:00. Call content-find again and use its modified_gmt.',
+			'The content changed since you read it. Call content-find again and use its content_sha256.',
 			$error->get_error_message()
 		);
 		$this->assertSame( [ 'GET' ], $this->methods() );
 	}
 
-	public function test_replace_refuses_a_route_that_reports_no_modified_time(): void {
-		unset( $this->page['modified_gmt'] );
+	public function test_replace_refuses_a_change_saved_in_the_same_second(): void {
+		$args = $this->replace_args( [ 'dry_run' => false ] );
 
-		$this->assert_error( 'hm_content_no_version', replace( $this->replace_args() ) );
+		// modified_gmt only records whole seconds, so it is unchanged here.
+		$this->page['content']['raw'] = str_replace( 'Beta', 'Delta', $this->page['content']['raw'] );
+
+		$this->assert_error( 'hm_content_changed', replace( $args ) );
+		$this->assertSame( [ 'GET' ], $this->methods() );
 	}
 
 	public function test_replace_refuses_an_empty_old_string(): void {
@@ -464,7 +470,7 @@ class ContentAbilitiesTest extends TestCase {
 		$this->assertSame( 1, $result['match_count'] );
 		$this->assertSame( strlen( $this->markup() ), $result['content_bytes_before'] );
 		$this->assertSame( strlen( $expected ), $result['content_bytes_after'] );
-		$this->assertSame( hash( 'sha256', $expected ), $result['sha256'] );
+		$this->assertSame( hash( 'sha256', $expected ), $result['content_sha256'] );
 		$this->assertTrue( $result['verified'] );
 		$this->assertArrayNotHasKey( 'message', $result );
 		$this->assertSame( $expected, $this->page['content']['raw'] );
@@ -486,7 +492,7 @@ class ContentAbilitiesTest extends TestCase {
 		$result = replace( $this->replace_args( [ 'dry_run' => false ] ) );
 
 		$this->assertFalse( $result['verified'] );
-		$this->assertSame( hash( 'sha256', str_replace( 'Alpha', 'Gamma!', $this->markup() ) ), $result['sha256'] );
+		$this->assertSame( hash( 'sha256', str_replace( 'Alpha', 'Gamma!', $this->markup() ) ), $result['content_sha256'] );
 		$this->assertStringContainsString( 'content-find', $result['message'] );
 		$this->assertStringContainsString( 'filter', $result['message'] );
 	}

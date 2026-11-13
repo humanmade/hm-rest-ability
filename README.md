@@ -48,7 +48,7 @@ Editing a large post through `rest-api-write` means sending the whole `content` 
 
 | MCP tool | Ability | What it does |
 |---|---|---|
-| `content-find` | `content/find` | Finds exact text in a post's content. Returns each match with its line numbers and the lines around it, plus the `modified_gmt` to pass to the next call. Read-only. |
+| `content-find` | `content/find` | Finds exact text in a post's content. Returns each match with its line numbers and the lines around it, plus the `content_sha256` to pass to the next call. Read-only. |
 | `content-replace` | `content/replace` | Replaces exact text. A dry run is the default and shows the changed lines. Set `dry_run` to `false` to save. |
 
 The server enforces the checks, so a weaker model can't skip them. `content-replace` refuses when:
@@ -58,7 +58,7 @@ The server enforces the checks, so a weaker model can't skip them. `content-repl
 - the edit would leave a block's opening and closing comments unbalanced
 - the route needs the user to confirm writes, in which case it points at `rest-api-write`
 
-After a save it reads the content back and returns `verified`, the new `modified_gmt` and a `sha256`. Both tools work on any single item route that returns `content.raw` with `context=edit`, such as `/wp/v2/pages/123`, and follow the same permission checks and `hm_rest_ability_policy` filter as the REST tools.
+After a save it reads the content back and returns `verified`, the new `modified_gmt` and the new `content_sha256`, ready for the next edit. Both tools work on any single item route that returns `content.raw` with `context=edit`, such as `/wp/v2/pages/123`, and follow the same permission checks and `hm_rest_ability_policy` filter as the REST tools.
 
 ### Extras
 

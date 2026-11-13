@@ -55,7 +55,7 @@ function register_abilities(): void {
 		'content/find',
 		[
 			'label'               => 'Find in Content',
-			'description'         => 'Find exact text in a post\'s content and return each match with its line numbers and the lines around it. Use this before content-replace: copy old_string from an excerpt, and pass back the modified_gmt it returns. Nothing is changed.',
+			'description'         => 'Find exact text in a post\'s content and return each match with its line numbers and the lines around it. Use this before content-replace: copy old_string from an excerpt, and pass back the content_sha256 it returns. Nothing is changed.',
 			'category'            => 'content',
 			'input_schema'        => [
 				'type'       => 'object',
@@ -94,7 +94,7 @@ function register_abilities(): void {
 		'content/replace',
 		[
 			'label'               => 'Replace in Content',
-			'description'         => 'Replace exact text in a post\'s content without sending the whole content. Call content-find first, copy old_string from an excerpt, and pass its modified_gmt. The call refuses if the content changed since you read it, if old_string does not match expected_matches times, or if it would unbalance block comments. By default it is a dry run that shows the changed lines and saves nothing. Set dry_run to false to save.',
+			'description'         => 'Replace exact text in a post\'s content without sending the whole content. Call content-find first, copy old_string from an excerpt, and pass its content_sha256. The call refuses if the content changed since you read it, if old_string does not match expected_matches times, or if it would unbalance block comments. By default it is a dry run that shows the changed lines and saves nothing. Set dry_run to false to save.',
 			'category'            => 'content',
 			'input_schema'        => [
 				'type'       => 'object',
@@ -115,9 +115,9 @@ function register_abilities(): void {
 						'default'     => 1,
 						'description' => 'How many times old_string must match. All matches are replaced.',
 					],
-					'modified_gmt'     => [
+					'content_sha256'   => [
 						'type'        => 'string',
-						'description' => 'The modified_gmt that content-find returned.',
+						'description' => 'The content_sha256 that content-find returned.',
 					],
 					'dry_run'          => [
 						'type'        => 'boolean',
@@ -125,7 +125,7 @@ function register_abilities(): void {
 						'description' => 'When true, show the changes and save nothing.',
 					],
 				],
-				'required'   => [ 'route', 'old_string', 'new_string', 'modified_gmt' ],
+				'required'   => [ 'route', 'old_string', 'new_string', 'content_sha256' ],
 			],
 			'permission_callback' => __NAMESPACE__ . '\\check_permission',
 			'execute_callback'    => __NAMESPACE__ . '\\replace',
@@ -196,12 +196,13 @@ function find( array $input ): array|WP_Error {
 
 	return finish(
 		[
-			'route'         => $route,
-			'modified_gmt'  => $post['modified_gmt'],
-			'content_bytes' => strlen( $raw ),
-			'line_count'    => '' === $raw ? 0 : count( $lines ),
-			'match_count'   => count( $matches ),
-			'matches'       => $matches,
+			'route'          => $route,
+			'content_sha256' => hash( 'sha256', $raw ),
+			'modified_gmt'   => $post['modified_gmt'],
+			'content_bytes'  => strlen( $raw ),
+			'line_count'     => '' === $raw ? 0 : count( $lines ),
+			'match_count'    => count( $matches ),
+			'matches'        => $matches,
 		],
 		'There are too many matches to list. Search for a longer piece of text, or set context_lines to 0.'
 	);
@@ -218,7 +219,7 @@ function replace( array $input ): array|WP_Error {
 	$old          = (string) ( $input['old_string'] ?? '' );
 	$new_string   = (string) ( $input['new_string'] ?? '' );
 	$expected     = max( 1, (int) ( $input['expected_matches'] ?? 1 ) );
-	$modified_gmt = (string) ( $input['modified_gmt'] ?? '' );
+	$content_hash = (string) ( $input['content_sha256'] ?? '' );
 	$dry_run      = (bool) ( $input['dry_run'] ?? true );
 
 	if ( '' === $old ) {
@@ -231,27 +232,16 @@ function replace( array $input ): array|WP_Error {
 		return $post;
 	}
 
-	if ( null === $post['modified_gmt'] ) {
-		return new WP_Error(
-			'hm_content_no_version',
-			'This route does not report modified_gmt, so the edit cannot be checked against other changes. Use rest-api-write instead.',
-			[ 'status' => 400 ]
-		);
-	}
+	$raw = $post['raw'];
 
-	if ( $post['modified_gmt'] !== $modified_gmt ) {
+	if ( ! hash_equals( hash( 'sha256', $raw ), $content_hash ) ) {
 		return new WP_Error(
 			'hm_content_changed',
-			sprintf(
-				'The content changed at %s since you read it at %s. Call content-find again and use its modified_gmt.',
-				$post['modified_gmt'],
-				$modified_gmt
-			),
+			'The content changed since you read it. Call content-find again and use its content_sha256.',
 			[ 'status' => 409 ]
 		);
 	}
 
-	$raw   = $post['raw'];
 	$count = substr_count( $raw, $old );
 
 	if ( $count !== $expected ) {
@@ -356,7 +346,7 @@ function replace( array $input ): array|WP_Error {
 		'match_count'          => $count,
 		'content_bytes_before' => strlen( $raw ),
 		'content_bytes_after'  => strlen( $new ),
-		'sha256'               => is_string( $saved_raw ) ? hash( 'sha256', $saved_raw ) : null,
+		'content_sha256'       => is_string( $saved_raw ) ? hash( 'sha256', $saved_raw ) : null,
 		'verified'             => $verified,
 		'changes'              => $changes,
 	];
