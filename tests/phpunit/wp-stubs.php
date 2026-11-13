@@ -266,7 +266,7 @@ if ( ! class_exists( 'WP_REST_Server' ) ) {
 		}
 
 		public function response_to_data( WP_REST_Response $response, $embed ) {
-			return $this->response_data ?? [ 'status' => $response->get_status() ];
+			return $this->response_data ?? $response->get_data() ?? [ 'status' => $response->get_status() ];
 		}
 
 		public function get_data_for_route( string $route, array $handlers, string $context = 'view' ): array {
