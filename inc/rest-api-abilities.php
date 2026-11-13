@@ -79,7 +79,7 @@ function tool_definitions(): array {
 			'label'       => 'Write REST API',
 			'methods'     => [ 'POST', 'PUT', 'PATCH' ],
 			'description' => sprintf(
-				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields. Confirm with the user before calling, and say what will change.',
+				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields. To change part of a post\'s content, use content-find and content-replace instead of sending the whole content. Confirm with the user before calling, and say what will change.',
 				$max_bytes
 			),
 			'annotations' => [
