@@ -26,6 +26,7 @@ use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\input_schema;
 use function HM\RestApiAbilities\output_schema;
 use function HM\RestApiAbilities\tool_definitions;
+use function HM\RestApiAbilities\endpoint_permission;
 use function HM\RouteRisk\classify_route;
 
 // Exit if accessed directly.
@@ -165,7 +166,7 @@ function needs_confirmation( array $args ): bool {
 	$method = strtoupper( $args['method'] ?? '' );
 	$route  = $args['route'] ?? '';
 	$params = $args['params'] ?? [];
-	$risk   = classify_route( $route, $method, $params );
+	$risk   = call_risk( $args );
 
 	/**
 	 * Filters whether a REST API call asks the user to confirm it first, when
@@ -185,6 +186,25 @@ function needs_confirmation( array $args ): bool {
 		$params,
 		$risk
 	);
+}
+
+/**
+ * Rates a call's risk from its route and from the capabilities the route's
+ * own permission check asks for, so a plugin's installer or settings route
+ * rates the same as core's.
+ *
+ * @param array $args Tool arguments, keyed by `method`, `route`, `params`.
+ * @return string One of `routine`, `site-config`, `irreversible`.
+ */
+function call_risk( array $args ): string {
+	$method = strtoupper( $args['method'] ?? '' );
+	$route  = $args['route'] ?? '';
+	$params = $args['params'] ?? [];
+	$caps   = [];
+
+	endpoint_permission( $method, $route, $params, $caps );
+
+	return classify_route( $route, $method, $params, $caps );
 }
 
 /**
@@ -262,7 +282,7 @@ function confirmation_message( array $args ): string {
 		$message = sprintf( 'Change %s (%s) on %s?', $route, $method, $site );
 	}
 
-	$message .= ' ' . risk_sentence( classify_route( $route, $method, $params ) );
+	$message .= ' ' . risk_sentence( call_risk( $args ) );
 
 	if ( ! empty( $params ) ) {
 		$message .= ' Params: ' . wp_json_encode( $params ) . '.';
