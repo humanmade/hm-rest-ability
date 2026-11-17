@@ -30,7 +30,7 @@ The split lets a client auto-approve reads and still ask before a write or a del
 ### Built-in guardrails
 
 - Delete is always marked destructive, and the write and delete tools ask the client to confirm with the user.
-- Routes are rated `routine`, `site-config` (settings, users, plugins, themes) or `irreversible`, and `OPTIONS` adds guidance to the risky ones.
+- Calls are rated `routine`, `site-config` or `irreversible`. A write is `site-config` when it goes to a core settings, users, plugins, themes or design route, or when the route's own permission check asks for a capability such as `install_plugins` or `manage_options`, so a plugin's own installer counts too. `OPTIONS` adds guidance to the risky routes.
 - Route guidance steers the agent away from common mistakes: new posts stay drafts unless the user asks to publish, `content` is block markup, and core's design routes explain where their IDs come from.
 - The plugin switches itself off when the site disables AI through `WP_AI_SUPPORT` or the `wp_supports_ai` filter (WordPress 7.0+).
 

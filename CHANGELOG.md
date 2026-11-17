@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preserve each native item status when an oversized core REST batch response loses its item bodies and headers.
 - Honour `_embed` using WordPress’s native embed parser and response conversion, including selective relations.
+- Rate a write or delete as `site-config` or `irreversible` when the route's own permission check asks for a capability that changes the site or its users, such as `install_plugins`, `activate_plugins`, `edit_theme_options` or `manage_options`. A plugin's own installer, theme switcher or settings route was rated `routine`, so it ran without asking the user to confirm. The `hm_rest_ability_route_risk` filter gets the checked capabilities as a fifth argument. In `inc/route-risk.php` and `inc/confirmation.php`.
+- Match site-config routes without regard to case, as WordPress matches routes. `POST /WP/v2/Settings` reached the settings endpoint but was rated `routine`. In `inc/route-risk.php`.
+- Rate writes to `/wp/v2/menu-items`, `/wp/v2/navigation`, `/wp/v2/widgets` and `/wp/v2/sidebars` as `site-config`, like `/wp/v2/menus`.
 
 ### Changed
 

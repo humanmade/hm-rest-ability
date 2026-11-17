@@ -428,6 +428,48 @@ class ConfirmationTest extends TestCase {
 		$this->assertSame( 'rest_not_logged_in', $result->get_error_code() );
 	}
 
+	public function test_needs_confirmation_for_a_plugin_route_that_checks_a_site_config_capability(): void {
+		$watchers = [];
+		Functions\when( 'add_filter' )->alias(
+			static function ( string $tag, callable $callback ) use ( &$watchers ) {
+				$watchers[ $tag ] = $callback;
+
+				return true;
+			}
+		);
+		Functions\when( 'remove_filter' )->justReturn( true );
+
+		$server = new \WP_REST_Server();
+		$server->set_routes(
+			[
+				'/acme/v1/plugins/(?P<slug>[\w-]+)/activate' => [
+					[
+						'methods'             => [ 'POST' => true ],
+						'permission_callback' => static function () use ( &$watchers ) {
+							$watchers['map_meta_cap']( [ 'activate_plugins' ], 'activate_plugin' );
+
+							return true;
+						},
+					],
+				],
+			]
+		);
+		Functions\when( 'rest_get_server' )->justReturn( $server );
+
+		$args = [
+			'method' => 'POST',
+			'route'  => '/acme/v1/plugins/acme-pro/activate',
+			'params' => [],
+		];
+
+		$this->assertTrue( needs_confirmation( $args ) );
+		$this->assertStringContainsString( 'site settings or who has access', confirmation_message( $args ) );
+	}
+
+	public function test_needs_confirmation_ignores_route_case(): void {
+		$this->assertTrue( needs_confirmation( [ 'method' => 'POST', 'route' => '/WP/v2/Settings', 'params' => [] ] ) );
+	}
+
 	public function test_filter_mcp_server_config_swaps_in_the_direct_tools(): void {
 		$config = filter_mcp_server_config(
 			[ 'tools' => [ 'mcp-adapter/execute-ability', 'rest-api/read', 'rest-api/write', 'rest-api/delete' ] ]

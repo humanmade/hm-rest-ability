@@ -31,7 +31,42 @@ const SITE_CONFIG_ROUTE_PREFIXES = [
 	'/wp/v2/template-parts',
 	'/wp/v2/global-styles',
 	'/wp/v2/menus',
+	'/wp/v2/menu-items',
+	'/wp/v2/navigation',
+	'/wp/v2/widgets',
+	'/wp/v2/sidebars',
 	'/wp-site-health',
+];
+
+/**
+ * Capabilities that mark a write as `site-config` when the route's own
+ * permission check asks for one, whatever the route path is.
+ */
+const SITE_CONFIG_CAPABILITIES = [
+	'install_plugins',
+	'activate_plugins',
+	'update_plugins',
+	'delete_plugins',
+	'edit_plugins',
+	'install_themes',
+	'switch_themes',
+	'update_themes',
+	'delete_themes',
+	'edit_themes',
+	'edit_theme_options',
+	'update_core',
+	'manage_options',
+	'create_users',
+	'edit_users',
+	'promote_users',
+	'delete_users',
+	'remove_users',
+	'manage_network',
+	'manage_network_options',
+	'manage_network_plugins',
+	'manage_network_themes',
+	'manage_network_users',
+	'manage_sites',
 ];
 
 /**
@@ -43,12 +78,14 @@ const SITE_CONFIG_ROUTE_PREFIXES = [
  *                        when classifying a route in the abstract, such as
  *                        for an OPTIONS description — this only narrows the
  *                        `force=true` case, it never widens a result.
+ * @param array  $caps   Capabilities the route's permission check asked for,
+ *                        from checked_capabilities(). Empty when unknown.
  * @return string One of `routine`, `site-config`, `irreversible`.
  */
-function classify_route( string $route, string $method, array $params = [] ): string {
+function classify_route( string $route, string $method, array $params = [], array $caps = [] ): string {
 	$method     = strtoupper( $method );
 	$is_delete  = 'DELETE' === $method;
-	$is_config  = is_site_config_route( $route );
+	$is_config  = is_site_config_route( $route ) || array_intersect( $caps, SITE_CONFIG_CAPABILITIES );
 	$has_force  = $is_delete && ! empty( $params['force'] );
 
 	if ( $has_force || ( $is_delete && $is_config ) ) {
@@ -66,8 +103,35 @@ function classify_route( string $route, string $method, array $params = [] ): st
 	 * @param string $route  REST route path.
 	 * @param string $method HTTP method.
 	 * @param array  $params Query or body params, when known.
+	 * @param array  $caps   Capabilities the route's permission check asked for, when known.
 	 */
-	return apply_filters( 'hm_rest_ability_route_risk', $risk, $route, $method, $params );
+	return apply_filters( 'hm_rest_ability_route_risk', $risk, $route, $method, $params, $caps );
+}
+
+/**
+ * Runs a permission check and returns every capability it asked for, both
+ * the capability named and the primitive capabilities it maps to.
+ *
+ * @param callable $check Permission check to run. Its result is ignored.
+ * @return string[]
+ */
+function checked_capabilities( callable $check ): array {
+	$caps    = [];
+	$watcher = static function ( $mapped, $cap ) use ( &$caps ) {
+		$caps = array_merge( $caps, [ $cap ], (array) $mapped );
+
+		return $mapped;
+	};
+
+	add_filter( 'map_meta_cap', $watcher, PHP_INT_MAX, 2 );
+
+	try {
+		$check();
+	} finally {
+		remove_filter( 'map_meta_cap', $watcher, PHP_INT_MAX );
+	}
+
+	return array_values( array_unique( array_filter( $caps, 'is_string' ) ) );
 }
 
 /**
@@ -77,6 +141,8 @@ function classify_route( string $route, string $method, array $params = [] ): st
  * @return bool
  */
 function is_site_config_route( string $route ): bool {
+	$route = strtolower( $route );
+
 	foreach ( SITE_CONFIG_ROUTE_PREFIXES as $prefix ) {
 		if ( 0 === strpos( $route, $prefix ) ) {
 			return true;
