@@ -108,6 +108,7 @@ npm install
 - `composer lint` / `composer format` run PHPCS and PHPCBF.
 - `composer test` runs the PHPUnit unit tests.
 - `npm run test:e2e` runs the Playwright tests against WordPress Playground.
+- `npm run eval` runs model-in-the-loop scenarios against Playground through your local Claude Code. It's local only, not part of CI. See [tests/evals/README.md](tests/evals/README.md).
 
 Releases are cut from the **Release** workflow in the Actions tab.
 
