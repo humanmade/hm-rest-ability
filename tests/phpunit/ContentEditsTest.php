@@ -260,6 +260,11 @@ class ContentEditsTest extends TestCase {
 		$this->assert_error( 'hm_content_edits_with_content', apply_to_input( $this->write( [], [ 'content' => 'x' ] ) ) );
 	}
 
+	public function test_refuses_an_id_param_with_edits(): void {
+		$this->assert_error( 'hm_content_edits_with_id', apply_to_input( $this->write( [], [ 'id' => 13 ] ) ) );
+		$this->assertSame( [], $this->requests );
+	}
+
 	public function test_refuses_badly_shaped_edits(): void {
 		$cases = [
 			'not a list'         => [ 'old_string' => 'Alpha', 'new_string' => 'Gamma' ],

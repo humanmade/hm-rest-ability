@@ -52,6 +52,10 @@ function apply_to_input( array $input ): array|WP_Error {
 		return error( 'hm_content_edits_method', '_content_edits only works on a write. Use rest-api-write with POST.', 400 );
 	}
 
+	if ( array_key_exists( 'id', $params ) ) {
+		return error( 'hm_content_edits_with_id', 'Put the item in the route, such as /wp/v2/pages/123, and leave id out of params when you use _content_edits.', 400 );
+	}
+
 	if ( array_key_exists( 'content', $params ) ) {
 		return error( 'hm_content_edits_with_content', 'Send either content or _content_edits, not both.', 400 );
 	}
