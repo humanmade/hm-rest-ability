@@ -16,6 +16,7 @@ use WP_REST_Request;
 use WP_REST_Response;
 
 use function HM\ContentEdits\apply_to_input as apply_content_edits;
+use function HM\ContentEdits\content_raw;
 use function HM\RouteRisk\checked_capabilities;
 use function HM\RouteRisk\classify_route;
 use function HM\RouteRisk\guidance_for_risk;
@@ -491,9 +492,9 @@ function execute( array $input ): array {
 
 	// Lets a client pass _content_sha256 with its next edit, even when the
 	// content itself was trimmed from the response.
-	$content_raw = is_array( $full_data ) ? ( $full_data['content']['raw'] ?? null ) : null;
+	$content_raw = content_raw( $full_data );
 
-	if ( is_string( $content_raw ) ) {
+	if ( null !== $content_raw ) {
 		$result['content_sha256'] = hash( 'sha256', $content_raw );
 	}
 

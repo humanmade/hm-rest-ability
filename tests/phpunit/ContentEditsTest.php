@@ -499,6 +499,40 @@ class ContentEditsTest extends TestCase {
 		$this->assertSame( hash( 'sha256', $this->markup() ), $result['content_sha256'] );
 	}
 
+	public function test_execute_returns_the_hash_when_the_content_is_an_object(): void {
+		$this->page = [ 'content' => (object) [ 'raw' => 'x' ] ];
+
+		$result = execute( [ 'method' => 'GET', 'route' => self::ROUTE ] );
+
+		$this->assertSame( hash( 'sha256', 'x' ), $result['content_sha256'] );
+	}
+
+	public function test_execute_returns_the_hash_when_the_whole_response_is_an_object(): void {
+		Functions\when( 'rest_do_request' )->justReturn( new WP_REST_Response( (object) [ 'content' => (object) [ 'raw' => 'x' ] ], 200 ) );
+
+		$result = execute( [ 'method' => 'GET', 'route' => self::ROUTE ] );
+
+		$this->assertSame( hash( 'sha256', 'x' ), $result['content_sha256'] );
+	}
+
+	public function test_execute_handles_content_that_is_not_an_array_or_object(): void {
+		$this->page = [ 'content' => 'x' ];
+
+		$result = execute( [ 'method' => 'GET', 'route' => self::ROUTE ] );
+
+		$this->assertArrayNotHasKey( 'content_sha256', $result );
+	}
+
+	public function test_edits_work_when_the_read_returns_object_content(): void {
+		$input                 = $this->write();
+		$this->page['content'] = (object) [ 'raw' => $this->markup() ];
+		$expected              = str_replace( 'Alpha', 'Gamma', $this->markup() );
+
+		$result = apply_to_input( $input );
+
+		$this->assertSame( $expected, $result['params']['content'] );
+	}
+
 	public function test_execute_leaves_out_the_hash_without_raw_content(): void {
 		$this->page = [ 'content' => [ 'rendered' => '<p>Alpha</p>' ] ];
 

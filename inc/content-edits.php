@@ -15,6 +15,7 @@
 
 namespace HM\ContentEdits;
 
+use stdClass;
 use WP_Error;
 
 // Exit if accessed directly.
@@ -199,13 +200,37 @@ function read_content( string $route ): string|WP_Error {
 		);
 	}
 
-	$raw = is_array( $data ) ? ( $data['content']['raw'] ?? null ) : null;
+	$raw = content_raw( $data );
 
-	if ( ! is_string( $raw ) ) {
+	if ( null === $raw ) {
 		return error( 'hm_content_edits_no_content', 'This route has no editable content. Use _content_edits on a single post route such as /wp/v2/pages/123.', 400 );
 	}
 
 	return $raw;
+}
+
+/**
+ * Returns the raw content of a response body, or null if it has none.
+ *
+ * The body and its `content` can each be an array or a stdClass object.
+ *
+ * @param mixed $data Response data.
+ * @return string|null
+ */
+function content_raw( mixed $data ): ?string {
+	foreach ( [ 'content', 'raw' ] as $key ) {
+		if ( $data instanceof stdClass ) {
+			$data = (array) $data;
+		}
+
+		if ( ! is_array( $data ) ) {
+			return null;
+		}
+
+		$data = $data[ $key ] ?? null;
+	}
+
+	return is_string( $data ) ? $data : null;
 }
 
 /**
