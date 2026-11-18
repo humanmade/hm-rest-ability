@@ -86,6 +86,10 @@ function apply_to_input( array $input ): array|WP_Error {
 
 	$new_errors = new_nesting_errors( $raw, $content );
 
+	if ( null === $new_errors ) {
+		return error( 'hm_content_edits_scan_failed', 'The block comments could not be checked, so nothing was saved. Send the whole content instead.', 422 );
+	}
+
 	if ( $new_errors ) {
 		return error(
 			'hm_content_edits_break_blocks',
@@ -210,13 +214,20 @@ function read_content( string $route ): string|WP_Error {
  *
  * @param string $before Content before the edits.
  * @param string $after  Content after the edits.
- * @return string[]
+ * @return string[]|null Null if either content could not be scanned.
  */
-function new_nesting_errors( string $before, string $after ): array {
-	$existing = array_count_values( nesting_errors( $before ) );
+function new_nesting_errors( string $before, string $after ): ?array {
+	$before_errors = nesting_errors( $before );
+	$after_errors  = nesting_errors( $after );
+
+	if ( null === $before_errors || null === $after_errors ) {
+		return null;
+	}
+
+	$existing = array_count_values( $before_errors );
 	$new      = [];
 
-	foreach ( nesting_errors( $after ) as $problem ) {
+	foreach ( $after_errors as $problem ) {
 		if ( ! empty( $existing[ $problem ] ) ) {
 			--$existing[ $problem ];
 			continue;
@@ -234,15 +245,19 @@ function new_nesting_errors( string $before, string $after ): array {
  * Self-closing blocks are skipped. A name without a namespace is a core block.
  *
  * @param string $content Block markup.
- * @return string[]
+ * @return string[]|null Null if the content could not be scanned.
  */
-function nesting_errors( string $content ): array {
-	preg_match_all(
-		'#<!--\s+(/)?wp:([a-z][a-z0-9_-]*(?:/[a-z][a-z0-9_-]*)?)((?:\s(?:(?!-->).)*?)?)-->#s',
+function nesting_errors( string $content ): ?array {
+	$scanned = preg_match_all(
+		'#<!--\s+(/)?wp:([a-z][a-z0-9_-]*(?:/[a-z][a-z0-9_-]*)?)((?:\s(?:[^-]++|-(?!->))*+)?)-->#s',
 		$content,
 		$comments,
 		PREG_SET_ORDER
 	);
+
+	if ( false === $scanned ) {
+		return null;
+	}
 
 	$open   = [];
 	$errors = [];

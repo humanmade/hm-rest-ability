@@ -379,6 +379,52 @@ class ContentEditsTest extends TestCase {
 		$this->assertIsArray( apply_to_input( $this->write( [ [ 'old_string' => '<p>Alpha</p>', 'new_string' => "<p>Alpha</p>\n<!-- /wp:quote -->" ] ] ) ) );
 	}
 
+	/**
+	 * Block markup that starts with a block whose attributes are 100KB.
+	 */
+	private function markup_with_large_attributes(): string {
+		return '<!-- wp:paragraph {"data":"' . str_repeat( 'a', 100000 ) . '"} -->' . "\n<p>Big</p>\n<!-- /wp:paragraph -->\n" . $this->markup();
+	}
+
+	public function test_refuses_removing_a_closing_comment_after_a_block_with_large_attributes(): void {
+		$this->page['content']['raw'] = $this->markup_with_large_attributes();
+
+		$error = $this->assert_error(
+			'hm_content_edits_break_blocks',
+			apply_to_input( $this->write( [ [ 'old_string' => '<!-- /wp:group -->', 'new_string' => '' ] ] ) )
+		);
+
+		$this->assertStringContainsString( 'core/group is never closed', $error->get_error_message() );
+	}
+
+	public function test_allows_a_harmless_edit_on_content_with_large_attributes(): void {
+		$this->page['content']['raw'] = $this->markup_with_large_attributes();
+
+		$result = apply_to_input( $this->write() );
+
+		$this->assertIsArray( $result );
+		$this->assertStringContainsString( '<p>Gamma</p>', $result['params']['content'] );
+	}
+
+	public function test_refuses_an_edit_when_the_block_comments_cannot_be_scanned(): void {
+		$jit     = ini_get( 'pcre.jit' );
+		$backtrk = ini_get( 'pcre.backtrack_limit' );
+
+		try {
+			ini_set( 'pcre.jit', '0' );
+			ini_set( 'pcre.backtrack_limit', '1' );
+
+			$this->assertNull( nesting_errors( $this->markup() ) );
+
+			$error = $this->assert_error( 'hm_content_edits_scan_failed', apply_to_input( $this->write() ) );
+
+			$this->assertSame( [ 'status' => 422 ], $error->get_error_data() );
+		} finally {
+			ini_set( 'pcre.jit', $jit );
+			ini_set( 'pcre.backtrack_limit', $backtrk );
+		}
+	}
+
 	public function test_nesting_errors_normalise_names_and_skip_self_closing_blocks(): void {
 		$this->assertSame(
 			[],
