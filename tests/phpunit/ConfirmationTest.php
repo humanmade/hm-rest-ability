@@ -367,6 +367,41 @@ class ConfirmationTest extends TestCase {
 		$this->assertSame( [ 'content' => '<p>Gamma</p>' ], end( $this->requests )->get_body_params() );
 	}
 
+	public function test_handle_decides_on_the_edited_content_of_a_content_edit(): void {
+		Functions\when( 'apply_filters' )->alias(
+			fn( $tag, $value, $method = '', $route = '', $params = [] ) => 'hm_rest_ability_needs_confirmation' === $tag
+				? str_contains( $params['content'] ?? '', 'MARKER' )
+				: $value
+		);
+		Functions\when( 'rest_do_request' )->alias(
+			function ( $request ) {
+				$this->requests[] = $request;
+
+				return new WP_REST_Response( [ 'content' => [ 'raw' => '<p>Alpha</p>' ] ], 200 );
+			}
+		);
+
+		$edit = static fn( string $new ) => [
+			'method' => 'POST',
+			'route'  => '/wp/v2/posts/1',
+			'params' => [
+				'_content_edits'  => [ [ 'old_string' => 'Alpha', 'new_string' => $new ] ],
+				'_content_sha256' => hash( 'sha256', '<p>Alpha</p>' ),
+			],
+		];
+
+		$asked = handle( $edit( 'MARKER' ), $this->elicitation_context() );
+
+		$this->assertInstanceOf( McpInputRequired::class, $asked );
+		$this->assertSame( [], $this->writes() );
+
+		$saved = handle( $edit( 'Gamma' ), $this->elicitation_context() );
+
+		$this->assertIsArray( $saved );
+		$this->assertSame( [ 'POST' ], $this->writes() );
+		$this->assertSame( [ 'content' => '<p>Gamma</p>' ], end( $this->requests )->get_body_params() );
+	}
+
 	public function test_refusals_use_the_documented_error_codes(): void {
 		$declined = handle( self::ARGS, $this->elicitation_context( [ 'confirm' => [ 'action' => 'decline' ] ], $this->valid_state() ) );
 		$missing  = handle( self::ARGS, $this->elicitation_context( $this->accept() ) );

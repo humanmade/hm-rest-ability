@@ -22,6 +22,7 @@ use WP\MCP\Domain\Utils\McpAnnotationMapper;
 use WP_Error;
 use WP_REST_Request;
 
+use function HM\ContentEdits\apply_to_input;
 use function HM\RestApiAbilities\execute;
 use function HM\RestApiAbilities\input_schema;
 use function HM\RestApiAbilities\output_schema;
@@ -214,12 +215,21 @@ function call_risk( array $args ): string {
  * then calls again with the user's answer, and the call runs only if they
  * accepted.
  *
+ * Content edits are applied first, so the decision to ask sees the edited
+ * content. The confirmation and the final call use the arguments as sent.
+ *
  * @param array                   $args    Tool arguments, keyed by `method`, `route`, `params`.
  * @param McpToolCallContext|null $context Client input for this call.
  * @return array|McpInputRequired|WP_Error
  */
 function handle( array $args, ?McpToolCallContext $context = null ) {
-	if ( ! needs_confirmation( $args ) ) {
+	$expanded = apply_to_input( $args );
+
+	if ( is_wp_error( $expanded ) ) {
+		return execute( $args );
+	}
+
+	if ( ! needs_confirmation( $expanded ) ) {
 		return execute( $args );
 	}
 
