@@ -431,6 +431,40 @@ class ConfirmationTest extends TestCase {
 		$this->assertStringContainsString( 'This cannot be undone.', $asked->input_requests()['confirm']['params']['message'] );
 	}
 
+	public function test_an_accept_is_refused_when_the_content_changed_after_the_prompt(): void {
+		$this->needs_override = true;
+		$raw                  = '<p>Alpha</p>';
+
+		Functions\when( 'rest_do_request' )->alias(
+			function ( $request ) use ( &$raw ) {
+				$this->requests[] = $request;
+
+				return new WP_REST_Response( [ 'content' => [ 'raw' => $raw ] ], 200 );
+			}
+		);
+
+		$args = [
+			'method' => 'POST',
+			'route'  => '/wp/v2/posts/1',
+			'params' => [
+				'_content_edits'  => [ [ 'old_string' => 'Alpha', 'new_string' => 'Gamma' ] ],
+				'_content_sha256' => hash( 'sha256', $raw ),
+			],
+		];
+
+		$asked = handle( $args, $this->elicitation_context() );
+
+		$this->assertInstanceOf( McpInputRequired::class, $asked );
+
+		$raw = '<p>Alpha changed</p>';
+
+		$result = handle( $args, $this->elicitation_context( $this->accept(), $asked->request_state() ) );
+
+		$this->assertSame( 409, $result['status'] );
+		$this->assertSame( 'hm_content_changed', $result['data']['code'] );
+		$this->assertSame( [], $this->writes() );
+	}
+
 	public function test_refusals_use_the_documented_error_codes(): void {
 		$declined = handle( self::ARGS, $this->elicitation_context( [ 'confirm' => [ 'action' => 'decline' ] ], $this->valid_state() ) );
 		$missing  = handle( self::ARGS, $this->elicitation_context( $this->accept() ) );
