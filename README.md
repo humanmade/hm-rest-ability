@@ -1,6 +1,6 @@
 # HM REST Ability
 
-Give MCP clients such as Claude the whole WordPress REST API through three tools, plus two for editing part of a post's content. Any route a plugin registers works straight away, even if the plugin defines no abilities. Built on the [Abilities API](https://make.wordpress.org/core/) and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter).
+Give MCP clients such as Claude the whole WordPress REST API through three tools. Any route a plugin registers works straight away, even if the plugin defines no abilities. Built on the [Abilities API](https://make.wordpress.org/core/) and the official [MCP Adapter](https://github.com/WordPress/mcp-adapter).
 
 ## Features
 
@@ -44,21 +44,20 @@ Filters let you tighten access or change the advice, without forking the plugin.
 
 ### Edit part of a post's content
 
-Editing a large post through `rest-api-write` means sending the whole `content` back, which a model can't reliably copy exactly. Two tools change only the part that needs it:
+Sending a large post's whole `content` back to change a few lines is slow and costly, and a model can't reliably copy it exactly. Instead, `rest-api-write` takes two extra params on any route that returns `content.raw`:
 
-| MCP tool | Ability | What it does |
-|---|---|---|
-| `content-find` | `content/find` | Finds exact text in a post's content. Returns each match with its line numbers and the lines around it, plus the `content_sha256` to pass to the next call. Read-only. |
-| `content-replace` | `content/replace` | Replaces exact text. A dry run is the default and shows the changed lines. Set `dry_run` to `false` to save. |
+- `_content_edits`: a list of `{old_string, new_string, expected_matches}`, applied in order. `expected_matches` defaults to 1.
+- `_content_sha256`: the `content_sha256` from the last read or write of the item.
 
-The server enforces the checks, so a weaker model can't skip them. `content-replace` refuses when:
+Any tool response that includes `content.raw` also has `content_sha256`. That covers a `GET` with `context=edit` and the response to a write, so edits can follow each other without another read.
 
-- the content changed since `content-find` read it
-- `old_string` doesn't match `expected_matches` times (default 1)
-- the edit would leave a block's opening and closing comments unbalanced
-- the route needs the user to confirm writes, in which case it points at `rest-api-write`
+The server applies the edits and sends a normal write with the new `content`. The endpoint's permission check, the `hm_rest_ability_policy` filter, the confirmation prompt and the response cap all see that write. Nothing is saved when:
 
-After a save it reads the content back and returns `verified`, the new `modified_gmt` and the new `content_sha256`, ready for the next edit. Both tools work on any single item route that returns `content.raw` with `context=edit`, such as `/wp/v2/pages/123`, and follow the same permission checks and `hm_rest_ability_policy` filter as the REST tools.
+- the content changed since it was read
+- an `old_string` doesn't match `expected_matches` times
+- the edits would break the nesting of block comments, for example a block that opens inside a group and closes outside it
+
+`OPTIONS` on a route with block content tells the agent about these params.
 
 ### Extras
 
