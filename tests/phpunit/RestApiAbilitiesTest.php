@@ -32,6 +32,7 @@ class RestApiAbilitiesTest extends TestCase {
 		parent::set_up();
 		$this->load_plugin_file( 'inc/route-risk.php' );
 		$this->load_plugin_file( 'inc/route-suggestions.php' );
+		$this->load_plugin_file( 'inc/content-edits.php' );
 		$this->load_plugin_file( 'inc/rest-api-abilities.php' );
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -135,7 +136,7 @@ class RestApiAbilitiesTest extends TestCase {
 		$this->assertArrayNotHasKey( 'required', $schema );
 		$this->assertTrue( $schema['additionalProperties'] );
 		$this->assertSame(
-			[ 'status', 'headers', 'data', 'response', 'truncated', 'error', 'suggestions', 'guidance' ],
+			[ 'status', 'headers', 'data', 'response', 'truncated', 'error', 'suggestions', 'content_sha256', 'guidance' ],
 			array_keys( $schema['properties'] )
 		);
 

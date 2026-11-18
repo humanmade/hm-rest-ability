@@ -33,7 +33,7 @@ function add_guidance( string $guidance, string $route, array $handlers ): strin
 		return $guidance;
 	}
 
-	$note = 'The content field holds WordPress block markup. GET /wp/v2/block-types lists the blocks this site has registered, with the attributes each one accepts.';
+	$note = 'The content field holds WordPress block markup. GET /wp/v2/block-types lists the blocks this site has registered, with the attributes each one accepts. To change part of the content without sending all of it, GET the item with context=edit, which returns content_sha256. Then write with params _content_sha256 and _content_edits in place of content. _content_edits is a list of {old_string, new_string, expected_matches}, applied in order. Each old_string must match exactly expected_matches times, 1 by default. Nothing is saved if the content changed since your read, or if an edit would break block nesting.';
 
 	return '' === $guidance ? $note : $guidance . ' ' . $note;
 }

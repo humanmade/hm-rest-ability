@@ -15,6 +15,7 @@ use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
 
+use function HM\ContentEdits\apply_to_input as apply_content_edits;
 use function HM\RouteRisk\classify_route;
 use function HM\RouteRisk\guidance_for_risk;
 use function HM\RouteSuggestions\no_route_message;
@@ -79,7 +80,7 @@ function tool_definitions(): array {
 			'label'       => 'Write REST API',
 			'methods'     => [ 'POST', 'PUT', 'PATCH' ],
 			'description' => sprintf(
-				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields. To change part of a post\'s content, use content-find and content-replace instead of sending the whole content. Confirm with the user before calling, and say what will change.',
+				'Create or update data through any WordPress REST API endpoint internally. Use rest-api/read first to find the route and its parameters — changes take effect on the live site immediately. Responses are capped at %d bytes and trimmed when they exceed it, so narrow them with _fields. Confirm with the user before calling, and say what will change.',
 				$max_bytes
 			),
 			'annotations' => [
@@ -212,6 +213,10 @@ function output_schema(): array {
 				'type'        => 'array',
 				'description' => 'Closest registered routes, when the route does not exist.',
 			],
+			'content_sha256' => [
+				'type'        => 'string',
+				'description' => 'SHA-256 of content.raw, when the response has it. Pass it as _content_sha256 with _content_edits.',
+			],
 			'guidance'    => [
 				'type'        => 'string',
 				'description' => 'Advice on calling a route that changes site settings or access, or that deletes data. Returned by OPTIONS.',
@@ -233,6 +238,12 @@ function output_schema(): array {
 function check_permission( array $input ): bool|WP_Error {
 	if ( ! is_user_logged_in() ) {
 		return new WP_Error( 'rest_not_logged_in', 'Authentication required.' );
+	}
+
+	$input = apply_content_edits( $input );
+
+	if ( is_wp_error( $input ) ) {
+		return $input;
 	}
 
 	$route  = $input['route'] ?? '';
@@ -408,6 +419,14 @@ function apply_policy( string $method, string $route, array $params ): bool|WP_E
  * @return array
  */
 function execute( array $input ): array {
+	$input = apply_content_edits( $input );
+
+	if ( is_wp_error( $input ) ) {
+		$error_data = $input->get_error_data();
+
+		return response_error( $input->get_error_code(), $input->get_error_message(), (int) ( $error_data['status'] ?? 400 ) );
+	}
+
 	$method = strtoupper( $input['method'] ?? 'GET' );
 	$route  = $input['route'] ?? '';
 	$params = $input['params'] ?? [];
@@ -461,6 +480,14 @@ function execute( array $input ): array {
 		'headers' => $response->get_headers(),
 		'data'    => $capped['data'],
 	];
+
+	// Lets a client pass _content_sha256 with its next edit, even when the
+	// content itself was trimmed from the response.
+	$content_raw = is_array( $full_data ) ? ( $full_data['content']['raw'] ?? null ) : null;
+
+	if ( is_string( $content_raw ) ) {
+		$result['content_sha256'] = hash( 'sha256', $content_raw );
+	}
 
 	if ( isset( $capped['truncated'] ) ) {
 		$result['truncated'] = $capped['truncated'];

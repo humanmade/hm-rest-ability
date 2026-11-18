@@ -66,6 +66,7 @@ class ConfirmationTest extends TestCase {
 		parent::set_up();
 		$this->load_plugin_file( 'inc/route-risk.php' );
 		$this->load_plugin_file( 'inc/route-suggestions.php' );
+		$this->load_plugin_file( 'inc/content-edits.php' );
 		$this->load_plugin_file( 'inc/rest-api-abilities.php' );
 		$this->load_plugin_file( 'inc/confirmation.php' );
 
@@ -331,6 +332,39 @@ class ConfirmationTest extends TestCase {
 		$state     = $this->valid_state( self::SETTINGS_ARGS );
 
 		$this->assert_refused( handle( self::SETTINGS_ARGS, $this->elicitation_context( $responses, $state ) ) );
+	}
+
+	public function test_handle_asks_before_a_content_edit_and_saves_it_once_accepted(): void {
+		$this->needs_override = true;
+
+		$args = [
+			'method' => 'POST',
+			'route'  => '/wp/v2/posts/1',
+			'params' => [
+				'_content_edits'  => [ [ 'old_string' => 'Alpha', 'new_string' => 'Gamma' ] ],
+				'_content_sha256' => hash( 'sha256', '<p>Alpha</p>' ),
+			],
+		];
+
+		Functions\when( 'rest_do_request' )->alias(
+			function ( $request ) {
+				$this->requests[] = $request;
+
+				return new WP_REST_Response( [ 'content' => [ 'raw' => '<p>Alpha</p>' ] ], 200 );
+			}
+		);
+
+		$asked = handle( $args, $this->elicitation_context() );
+
+		$this->assertInstanceOf( McpInputRequired::class, $asked );
+		$this->assertStringContainsString( '"old_string":"Alpha","new_string":"Gamma"', $asked->input_requests()['confirm']['params']['message'] );
+		$this->assertSame( [], $this->writes() );
+
+		$saved = handle( $args, $this->elicitation_context( $this->accept(), $asked->request_state() ) );
+
+		$this->assertIsArray( $saved );
+		$this->assertSame( [ 'POST' ], $this->writes() );
+		$this->assertSame( [ 'content' => '<p>Gamma</p>' ], end( $this->requests )->get_body_params() );
 	}
 
 	public function test_refusals_use_the_documented_error_codes(): void {
