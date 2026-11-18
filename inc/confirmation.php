@@ -244,7 +244,7 @@ function handle( array $args, ?McpToolCallContext $context = null ) {
 	}
 
 	return new McpInputRequired(
-		[ INPUT_KEY => confirmation_request( $args ) ],
+		[ INPUT_KEY => confirmation_request( $args, call_risk( $expanded ) ) ],
 		sign_state( $args, time() + STATE_TTL )
 	);
 }
@@ -254,15 +254,16 @@ function handle( array $args, ?McpToolCallContext $context = null ) {
  *
  * The form has no fields: the client's own Accept button is the confirmation.
  *
- * @param array $args Tool arguments.
+ * @param array       $args Tool arguments.
+ * @param string|null $risk One of `routine`, `site-config`, `irreversible`. Rated from `$args` if null.
  * @return array
  */
-function confirmation_request( array $args ): array {
+function confirmation_request( array $args, ?string $risk = null ): array {
 	return [
 		'method' => 'elicitation/create',
 		'params' => [
 			'mode'            => 'form',
-			'message'         => confirmation_message( $args ),
+			'message'         => confirmation_message( $args, $risk ),
 			'requestedSchema' => [
 				'type'       => 'object',
 				'properties' => (object) [],
@@ -274,10 +275,11 @@ function confirmation_request( array $args ): array {
 /**
  * Describes the call for the user: what it does, where, and how risky it is.
  *
- * @param array $args Tool arguments.
+ * @param array       $args Tool arguments.
+ * @param string|null $risk One of `routine`, `site-config`, `irreversible`. Rated from `$args` if null.
  * @return string
  */
-function confirmation_message( array $args ): string {
+function confirmation_message( array $args, ?string $risk = null ): string {
 	$method = strtoupper( $args['method'] ?? '' );
 	$route  = $args['route'] ?? '';
 	$params = $args['params'] ?? [];
@@ -292,7 +294,7 @@ function confirmation_message( array $args ): string {
 		$message = sprintf( 'Change %s (%s) on %s?', $route, $method, $site );
 	}
 
-	$message .= ' ' . risk_sentence( call_risk( $args ) );
+	$message .= ' ' . risk_sentence( $risk ?? call_risk( $args ) );
 
 	if ( ! empty( $params ) ) {
 		$message .= ' Params: ' . wp_json_encode( $params ) . '.';
