@@ -59,6 +59,11 @@
 			"data": "<?php\n/**\n * Test-only: a REST route whose callback returns a WP_Post object, which\n * response_to_data() passes through unchanged.\n */\n\nadd_action( 'rest_api_init', function () {\n\tregister_rest_route( 'object-test/v1', '/post', [\n\t\t'methods'             => 'GET',\n\t\t'callback'            => function () {\n\t\t\treturn new WP_REST_Response( new WP_Post( (object) [ 'ID' => 1, 'post_title' => 'Object fixture' ] ) );\n\t\t},\n\t\t'permission_callback' => '__return_true',\n\t] );\n} );\n"
 		},
 		{
+			"step": "writeFile",
+			"path": "/wordpress/wp-content/mu-plugins/test-plugin-settings-route.php",
+			"data": "<?php\n/**\n * Test-only: a plugin settings route gated on manage_options. It saves\n * nothing, so a test can call it freely.\n */\n\nadd_action( 'rest_api_init', function () {\n\tregister_rest_route( 'settings-test/v1', '/options', [\n\t\t'methods'             => 'POST',\n\t\t'callback'            => fn() => [ 'saved' => true ],\n\t\t'permission_callback' => fn() => current_user_can( 'manage_options' ),\n\t] );\n} );\n"
+		},
+		{
 			"step": "activatePlugin",
 			"pluginPath": "hm-rest-ability/hm-rest-ability.php",
 			"pluginName": "HM REST Ability"

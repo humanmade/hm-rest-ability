@@ -18,6 +18,7 @@
 - Permission paths return `WP_Error` with a message that tells the client what to do next.
 - PHPUnit stubs in `tests/phpunit/wp-stubs.php` stay close enough to core that a new test fails without the fix.
 - New behaviour visible to MCP clients has an e2e test in `tests/e2e/` (runs in CI on Playground).
+- Changes to tool descriptions, route guidance, error messages or the confirmation flow get a local `npm run eval` run (needs a logged-in Claude Code; not in CI). Put the pass count in the PR.
 - `CHANGELOG.md` gets an entry; the release workflow tags `main` as-is, so a release PR puts it under a dated version heading.
 
 ## Paths that need a person

@@ -16,6 +16,7 @@ use WP_REST_Request;
 use WP_REST_Response;
 
 use function HM\ContentEdits\apply_to_input as apply_content_edits;
+use function HM\RouteRisk\checked_capabilities;
 use function HM\RouteRisk\classify_route;
 use function HM\RouteRisk\guidance_for_risk;
 use function HM\RouteSuggestions\no_route_message;
@@ -266,9 +267,11 @@ function check_permission( array $input ): bool|WP_Error {
  * @param string $method HTTP method.
  * @param string $route  REST route path.
  * @param array  $params Query or body params.
+ * @param array  $caps   Set to the capabilities the route's permission
+ *                       callback asked for.
  * @return bool|WP_Error
  */
-function endpoint_permission( string $method, string $route, array $params ): bool|WP_Error {
+function endpoint_permission( string $method, string $route, array $params, array &$caps = [] ): bool|WP_Error {
 	$server    = rest_get_server();
 	$request   = build_request( $method, $route, $params );
 	$endpoints = $server->get_routes();
@@ -316,7 +319,12 @@ function endpoint_permission( string $method, string $route, array $params ): bo
 			if ( ! $permission_callback || $permission_callback === '__return_true' ) {
 				return true;
 			}
-			$result = call_user_func( $permission_callback, $request );
+			$result = null;
+			$caps   = checked_capabilities(
+				static function () use ( &$result, $permission_callback, $request ) {
+					$result = call_user_func( $permission_callback, $request );
+				}
+			);
 			if ( is_wp_error( $result ) ) {
 				return $result;
 			}

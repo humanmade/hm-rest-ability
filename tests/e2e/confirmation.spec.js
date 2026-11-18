@@ -226,6 +226,24 @@ test.describe( 'MCP confirmation', () => {
 		expect( await siteTagline( client ) ).toBe( original );
 	} );
 
+	test( 'asks to confirm a write to a plugin route that checks manage_options', async ( { request } ) => {
+		const client = await McpClient.connect2026( request, 'admin', ELICITATION );
+		const args = { method: 'POST', route: '/settings-test/v1/options', params: {} };
+
+		const asked = await client.callTool( 'rest-api-write', args );
+
+		expect( asked.result.resultType ).toBe( 'input_required' );
+		expect( asked.result.inputRequests.confirm.params.message ).toContain( 'site settings' );
+
+		const accepted = await client.callTool( 'rest-api-write', args, {
+			inputResponses: { confirm: { action: 'accept', content: {} } },
+			requestState: asked.result.requestState,
+		} );
+
+		expect( accepted.isError, accepted.text ).toBe( false );
+		expect( accepted.data.data.saved ).toBe( true );
+	} );
+
 	test( 'runs a routine write without asking', async ( { request } ) => {
 		const client = await McpClient.connect2026( request, 'admin', ELICITATION );
 		const created = await client.callTool( 'rest-api-write', {
