@@ -7,12 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-18
+
 ### Added
 
 - Change part of a post's content without sending all of it. `rest-api/write` takes `_content_edits`, a list of `{old_string, new_string, expected_matches}`, and `_content_sha256` in place of `content`. The server applies the edits and sends a normal write, so permission checks, the policy filter and confirmation apply as usual. It saves nothing when the content changed since it was read, when a match count is not `expected_matches`, or when the edits would break the nesting of block comments. Responses that include `content.raw` now carry its `content_sha256`, and `OPTIONS` on routes with block content describes the params. In `inc/content-edits.php`.
 
-- Continue oversized GET responses with bounded base64-encoded JSON chunks. Cursors pin the request, site, user and complete response; changed responses return 409 and each call rechecks native permissions. Truncated responses include the full data SHA-256 so clients can verify a readback after a write without repeating it.
+### Fixed
 
+- Rate a write or delete as `site-config` or `irreversible` when the route's own permission check asks for a capability that changes the site or its users, such as `install_plugins`, `activate_plugins`, `edit_theme_options` or `manage_options`. A plugin's own installer, theme switcher or settings route was rated `routine`, so it ran without asking the user to confirm. The `hm_rest_ability_route_risk` filter gets the checked capabilities as a fifth argument. In `inc/route-risk.php` and `inc/confirmation.php`.
+- Match site-config routes without regard to case, as WordPress matches routes. `POST /WP/v2/Settings` reached the settings endpoint but was rated `routine`. In `inc/route-risk.php`.
+- Rate writes to `/wp/v2/menu-items`, `/wp/v2/navigation`, `/wp/v2/widgets` and `/wp/v2/sidebars` as `site-config`, like `/wp/v2/menus`.
+
+## [1.0.3] - 2026-11-11
+
+### Added
+
+- Continue oversized GET responses with bounded base64-encoded JSON chunks. Cursors pin the request, site, user and complete response; changed responses return 409 and each call rechecks native permissions. Truncated responses include the full data SHA-256 so clients can verify a readback after a write without repeating it.
 - Turn the plugin off when core disables AI. On WordPress 7.0 and later, `wp_supports_ai()` is false when the `WP_AI_SUPPORT` constant is false or a `wp_supports_ai` filter returns false, and the plugin then registers no abilities, MCP tools or filters. It checks on `after_setup_theme`, so filters added by plugins and themes count; it runs before the REST request is authenticated, so a filter can't depend on the current user. Earlier WordPress versions have no such switch and load the plugin as before. In `hm-rest-ability.php`.
 - Declare an output schema on `rest-api/read`, `rest-api/write` and `rest-api/delete`, so MCP clients see `outputSchema` for `rest-api-read`, `rest-api-write` and `rest-api-delete` in `tools/list`. It describes `status`, `headers`, `data`, `truncated`, `error`, `suggestions` and `guidance`, with every property optional and extra properties allowed. In `inc/rest-api-abilities.php` and `inc/confirmation.php`.
 
@@ -20,9 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preserve each native item status when an oversized core REST batch response loses its item bodies and headers.
 - Honour `_embed` using WordPress’s native embed parser and response conversion, including selective relations.
-- Rate a write or delete as `site-config` or `irreversible` when the route's own permission check asks for a capability that changes the site or its users, such as `install_plugins`, `activate_plugins`, `edit_theme_options` or `manage_options`. A plugin's own installer, theme switcher or settings route was rated `routine`, so it ran without asking the user to confirm. The `hm_rest_ability_route_risk` filter gets the checked capabilities as a fifth argument. In `inc/route-risk.php` and `inc/confirmation.php`.
-- Match site-config routes without regard to case, as WordPress matches routes. `POST /WP/v2/Settings` reached the settings endpoint but was rated `routine`. In `inc/route-risk.php`.
-- Rate writes to `/wp/v2/menu-items`, `/wp/v2/navigation`, `/wp/v2/widgets` and `/wp/v2/sidebars` as `site-config`, like `/wp/v2/menus`.
 
 ### Changed
 
@@ -150,7 +158,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rest-api/call` ability for dispatching internal WordPress REST API
   requests from MCP clients.
 
-[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/humanmade/hm-rest-ability/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.3...v1.1.0
+[1.0.3]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/humanmade/hm-rest-ability/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/humanmade/hm-rest-ability/compare/v0.6.0...v1.0.0
