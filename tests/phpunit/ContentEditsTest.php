@@ -452,6 +452,29 @@ class ContentEditsTest extends TestCase {
 		$this->assertSame( [], $this->permission_requests );
 	}
 
+	public function test_the_baseline_read_goes_through_site_policy(): void {
+		$seen = [];
+
+		Functions\when( 'apply_filters' )->alias(
+			function ( string $tag, $value, ...$args ) use ( &$seen ) {
+				if ( 'hm_rest_ability_policy' !== $tag ) {
+					return $value;
+				}
+
+				$seen[] = $args;
+
+				return 'GET' === $args[0] ? 'deny' : 'allow';
+			}
+		);
+
+		$this->assert_error( 'rest_ability_policy_denied', check_permission( $this->write() ) );
+		$this->assertSame( [ [ 'GET', self::ROUTE, [ 'context' => 'edit' ] ] ], $seen );
+		$this->assertSame( [], $this->requests );
+
+		$this->assert_error( 'rest_ability_policy_denied', apply_to_input( $this->write() ) );
+		$this->assertSame( [], $this->requests );
+	}
+
 	public function test_check_permission_lets_site_policy_deny_an_edit(): void {
 		$this->policy = 'deny';
 

@@ -178,13 +178,21 @@ function apply_edits( string $content, array $edits ): string|WP_Error {
 }
 
 /**
- * Reads a route with context=edit and returns its raw content.
+ * Reads a route with context=edit, if site policy allows a GET, and returns
+ * its raw content.
  *
  * @param string $route REST route of one item.
  * @return string|WP_Error
  */
 function read_content( string $route ): string|WP_Error {
-	$response = rest_do_request( \HM\RestApiAbilities\build_request( 'GET', $route, [ 'context' => 'edit' ] ) );
+	$params  = [ 'context' => 'edit' ];
+	$allowed = \HM\RestApiAbilities\apply_policy( 'GET', $route, $params );
+
+	if ( is_wp_error( $allowed ) ) {
+		return $allowed;
+	}
+
+	$response = rest_do_request( \HM\RestApiAbilities\build_request( 'GET', $route, $params ) );
 
 	if ( is_wp_error( $response ) ) {
 		return $response;
