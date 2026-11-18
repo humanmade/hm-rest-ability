@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Change part of a post's content without sending all of it. `rest-api/write` takes `_content_edits`, a list of `{old_string, new_string, expected_matches}`, and `_content_sha256` in place of `content`. The server applies the edits and sends a normal write, so permission checks, the policy filter and confirmation apply as usual. It saves nothing when the content changed since it was read, when a match count is not `expected_matches`, or when the edits would break the nesting of block comments. Responses that include `content.raw` now carry its `content_sha256`, and `OPTIONS` on routes with block content describes the params. In `inc/content-edits.php`.
+
 - Continue oversized GET responses with bounded base64-encoded JSON chunks. Cursors pin the request, site, user and complete response; changed responses return 409 and each call rechecks native permissions. Truncated responses include the full data SHA-256 so clients can verify a readback after a write without repeating it.
 
 - Turn the plugin off when core disables AI. On WordPress 7.0 and later, `wp_supports_ai()` is false when the `WP_AI_SUPPORT` constant is false or a `wp_supports_ai` filter returns false, and the plugin then registers no abilities, MCP tools or filters. It checks on `after_setup_theme`, so filters added by plugins and themes count; it runs before the REST request is authenticated, so a filter can't depend on the current user. Earlier WordPress versions have no such switch and load the plugin as before. In `hm-rest-ability.php`.

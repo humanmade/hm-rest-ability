@@ -37,5 +37,6 @@ Cap of 3. Public repo: no client names, sites or domains anywhere.
 
 ## Learned
 
+- 2026-11-18: `_content_edits` (PR #77) leaves these out of scope on purpose: atomic hash-and-save (the read and the write are separate requests), comparing nesting errors as a multiset, memory growth from chained replacements, docs on overlapping matches, and an eval scenario. Don't re-raise them against content-edit changes.
 - 2026-10-29: `blueprint.json` holds test-only mu-plugins on purpose. Only the e2e suite and local `npm run playground:start` use it, and `.gitattributes` keeps it out of the release ZIP, so adding fixtures there is fine.
 - 2026-10-29: Object `data` skipping the size cap in `cap_response_data()` is known and was left out of scope on purpose; don't re-raise it against unrelated changes.

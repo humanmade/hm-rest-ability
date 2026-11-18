@@ -129,6 +129,24 @@ who can edit posts.
 
 Say which path you took, and that the result wasn't validated.
 
+## Editing part of existing content
+
+To change a few lines of a post that already exists, send only the change. Don't send the whole `content` back. Re-sending a long post is slow, and one wrong character in the copy changes the page.
+
+1. `rest-api/read` with `GET`, the item's route and `context=edit`. The result has `content_sha256` alongside `data`. Add `_fields=content` to skip the other fields.
+2. `rest-api/write` with `POST` to the same route, and these params in place of `content`:
+   - `_content_edits`: a list of `{"old_string": "...", "new_string": "..."}`. Copy each `old_string` exactly from `content.raw`, including whitespace, with enough around it to match once. Add `"expected_matches": N` to replace every one of N matches.
+   - `_content_sha256`: the hash from step 1.
+3. The write's result has a new `content_sha256`. Use it for the next edit, so you don't need to read the post again.
+
+Edits apply in order, and nothing is saved unless all of them work. When a write fails, its error says why and what to do:
+
+- the content changed since you read it: read it again and redo the edit
+- an `old_string` matched the wrong number of times: add more surrounding text, or set `expected_matches`
+- the edits would break block nesting: include a block's opening and closing comments together when you move or remove it
+
+Send the whole `content` when you're rewriting most of a post or creating one.
+
 ## Images
 
 Upload first, then reference. `media/upload` takes a base64 file and returns

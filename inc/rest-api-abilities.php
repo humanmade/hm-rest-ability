@@ -15,6 +15,8 @@ use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
 
+use function HM\ContentEdits\apply_to_input as apply_content_edits;
+use function HM\ContentEdits\content_raw;
 use function HM\RouteRisk\checked_capabilities;
 use function HM\RouteRisk\classify_route;
 use function HM\RouteRisk\guidance_for_risk;
@@ -213,6 +215,10 @@ function output_schema(): array {
 				'type'        => 'array',
 				'description' => 'Closest registered routes, when the route does not exist.',
 			],
+			'content_sha256' => [
+				'type'        => 'string',
+				'description' => 'SHA-256 of content.raw, when the response has it. Pass it as _content_sha256 with _content_edits.',
+			],
 			'guidance'    => [
 				'type'        => 'string',
 				'description' => 'Advice on calling a route that changes site settings or access, or that deletes data. Returned by OPTIONS.',
@@ -234,6 +240,12 @@ function output_schema(): array {
 function check_permission( array $input ): bool|WP_Error {
 	if ( ! is_user_logged_in() ) {
 		return new WP_Error( 'rest_not_logged_in', 'Authentication required.' );
+	}
+
+	$input = apply_content_edits( $input );
+
+	if ( is_wp_error( $input ) ) {
+		return $input;
 	}
 
 	$route  = $input['route'] ?? '';
@@ -416,6 +428,14 @@ function apply_policy( string $method, string $route, array $params ): bool|WP_E
  * @return array
  */
 function execute( array $input ): array {
+	$input = apply_content_edits( $input );
+
+	if ( is_wp_error( $input ) ) {
+		$error_data = $input->get_error_data();
+
+		return response_error( $input->get_error_code(), $input->get_error_message(), (int) ( $error_data['status'] ?? 400 ) );
+	}
+
 	$method = strtoupper( $input['method'] ?? 'GET' );
 	$route  = $input['route'] ?? '';
 	$params = $input['params'] ?? [];
@@ -469,6 +489,14 @@ function execute( array $input ): array {
 		'headers' => $response->get_headers(),
 		'data'    => $capped['data'],
 	];
+
+	// Lets a client pass _content_sha256 with its next edit, even when the
+	// content itself was trimmed from the response.
+	$content_raw = content_raw( $full_data );
+
+	if ( null !== $content_raw ) {
+		$result['content_sha256'] = hash( 'sha256', $content_raw );
+	}
 
 	if ( isset( $capped['truncated'] ) ) {
 		$result['truncated'] = $capped['truncated'];

@@ -42,6 +42,23 @@ On clients that support MCP elicitation (2026-07-28), a delete or a write to a r
 
 Filters let you tighten access or change the advice, without forking the plugin. See [Filters](#filters).
 
+### Edit part of a post's content
+
+Sending a large post's whole `content` back to change a few lines is slow and costly, and a model can't reliably copy it exactly. Instead, `rest-api-write` takes two extra params on any route that returns `content.raw`:
+
+- `_content_edits`: a list of `{old_string, new_string, expected_matches}`, applied in order. `expected_matches` defaults to 1.
+- `_content_sha256`: the `content_sha256` from the last read or write of the item.
+
+Any tool response that includes `content.raw` also has `content_sha256`. That covers a `GET` with `context=edit` and the response to a write, so edits can follow each other without another read.
+
+The server applies the edits and sends a normal write with the new `content`. The endpoint's permission check, the `hm_rest_ability_policy` filter, the confirmation prompt and the response cap all see that write. Nothing is saved when:
+
+- the content changed since it was read
+- an `old_string` doesn't match `expected_matches` times
+- the edits would break the nesting of block comments, for example a block that opens inside a group and closes outside it
+
+`OPTIONS` on a route with block content tells the agent about these params.
+
 ### Extras
 
 - `media/upload` takes a base64 file and adds it to the media library, which the REST tools can't do with JSON params.
