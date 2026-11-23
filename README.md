@@ -89,22 +89,84 @@ Or upload a [release ZIP](https://github.com/humanmade/hm-rest-ability/releases)
 | `hm_rest_ability_max_response_bytes` | Change the 50KB response cap. `0` turns it off. |
 | `hm_rest_ability_max_upload_bytes` | Change the upload limit. Defaults to `wp_max_upload_size()`. |
 
-For example, to block writes to settings, plugins and themes:
+### Examples
+
+#### Describe a route
+
+Use `hm_rest_ability_route_guidance` to tell the agent how your site works. Add to the guidance that is already there instead of replacing it, so the built-in risk advice stays. `inc/status-field-guidance.php` is a working example.
 
 ```php
-add_filter( 'hm_rest_ability_policy', function ( $decision, $method, $route, $params ) {
-	if ( 'GET' === $method ) {
+add_filter( 'hm_rest_ability_route_guidance', function ( string $guidance, string $route ): string {
+	if ( ! preg_match( '#^/wp/v2/posts#i', $route ) ) {
+		return $guidance;
+	}
+
+	$note = 'Posts on this site are read by the whole company. Leave new posts as drafts so the author can review and publish them.';
+
+	return '' === $guidance ? $note : $guidance . ' ' . $note;
+}, 10, 2 );
+```
+
+#### Block something outright
+
+Use `hm_rest_ability_policy` to deny a call. It can only narrow access, never widen it. The route reaches the filter as the caller sent it, and WordPress matches routes without regard to case, so lowercase the route before you compare it. The agent gets a `rest_ability_policy_denied` error.
+
+```php
+add_filter( 'hm_rest_ability_policy', function ( string $decision, string $method, string $route ): string {
+	if ( in_array( $method, [ 'GET', 'OPTIONS' ], true ) ) {
 		return $decision;
 	}
 
-	foreach ( [ '/wp/v2/settings', '/wp/v2/plugins', '/wp/v2/themes' ] as $prefix ) {
+	$route = '/' . ltrim( strtolower( $route ), '/' );
+
+	foreach ( [ '/wp/v2/plugins', '/wp/v2/themes', '/wp/v2/users' ] as $prefix ) {
 		if ( str_starts_with( $route, $prefix ) ) {
 			return 'deny';
 		}
 	}
 
 	return $decision;
+}, 10, 3 );
+```
+
+#### Rate a plugin's route as risky
+
+Use `hm_rest_ability_route_risk` to rate a plugin's route as `site-config`, so writes to it ask the user to confirm. The arguments are `$risk, $route, $method`, which is not the same order as the policy filter. A fifth argument, `$caps`, lists the capabilities the route's permission check asks for. You don't need code for a route that checks `manage_options` or `install_plugins`, because it is already rated `site-config`.
+
+```php
+add_filter( 'hm_rest_ability_route_risk', function ( string $risk, string $route, string $method ): string {
+	if ( 'routine' !== $risk || 'GET' === $method ) {
+		return $risk;
+	}
+
+	if ( str_starts_with( strtolower( $route ), '/gf/v2/forms' ) ) {
+		return 'site-config';
+	}
+
+	return $risk;
+}, 10, 3 );
+```
+
+#### Ask before publishing
+
+Use `hm_rest_ability_needs_confirmation` to ask the user before a call runs. Confirmation needs a client with elicitation support, and other clients run the call straight away. So use confirmation for "check with me first", and the policy filter for "never".
+
+```php
+add_filter( 'hm_rest_ability_needs_confirmation', function ( bool $needs, string $method, string $route, array $params ): bool {
+	if ( 'publish' === ( $params['status'] ?? '' ) ) {
+		return true;
+	}
+
+	return $needs;
 }, 10, 4 );
+```
+
+#### Change the response cap
+
+Use `hm_rest_ability_max_response_bytes` to change the 50KB response cap. `0` turns it off.
+
+```php
+add_filter( 'hm_rest_ability_max_response_bytes', fn () => 20000 );
 ```
 
 ## Agent skill
